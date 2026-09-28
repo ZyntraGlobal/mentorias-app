@@ -418,6 +418,8 @@ async function entrarComSenha(senha) {
   let token;
   try { token = await decifrarToken(acesso, senha); } catch (e) { throw new Error('Senha incorreta'); }
   await guardarToken(token);
+  if (window.api) await guardarVerificador(senha);
+  marcarAtividade(true);
 }
 // Primeira configuração (no computador): valida o token, publica o acesso cifrado e envia os dados
 async function configurarSync(token, senha) {
@@ -427,6 +429,8 @@ async function configurarSync(token, senha) {
   const r = await ghPutArquivo(API_ACESSO, JSON.stringify(acesso), atual.sha, 'acesso iphone', token);
   if (!r.ok) throw new Error('não foi possível publicar o acesso — tente de novo');
   await guardarToken(token);
+  if (window.api) await guardarVerificador(senha);
+  marcarAtividade(true);
 }
 
 // ============================================================
@@ -1142,7 +1146,8 @@ function cardSync() {
   let h = `<div class="card" style="grid-column:1/-1"><div class="card-head"><h3>📱 iPhone e sincronização</h3><span id="cf-sync-status">${syncStatusHTML()}</span></div>`;
   if (SYNC.token) {
     h += `<div class="card-sub mb-16">Tudo o que você lança aqui aparece no ${window.api ? 'iPhone' : 'computador'} em poucos segundos (e vice-versa).<br>
-      App do iPhone: <a class="link" onclick="abrirURL(URL_APP)">${URL_APP}</a> — abra no Safari → Compartilhar → <b>Adicionar à Tela de Início</b>.</div>
+      App do iPhone: <a class="link" onclick="abrirURL(URL_APP)">${URL_APP}</a> — abra no Safari → Compartilhar → <b>Adicionar à Tela de Início</b>.<br>
+      🔒 Por segurança, depois de <b>4 horas sem uso</b> o app pede a senha de novo (no computador e no iPhone).</div>
       <div class="flex gap-8" style="flex-wrap:wrap">
         <button class="btn btn-primary" onclick="sincronizar(true)">🔄 Sincronizar agora</button>
         ${window.api ? `<button class="btn btn-ghost" onclick="$('cf-troca').style.display=''">🔑 Trocar senha do iPhone</button>` : ''}
@@ -1200,6 +1205,26 @@ async function trocarSenhaIphone() {
   if (!validarSenhaNova(s1, s2)) return;
   try { await configurarSync(SYNC.token, s1); toast('Senha do iPhone trocada ✓'); renderTudo(); }
   catch (e) { toast('Não deu certo: ' + e.message, 'error'); }
+}
+// Botão "Sair": sincroniza o que falta e então fecha (computador) ou tranca com a senha (iPhone)
+async function sair() {
+  const msg = window.api ? 'Fechar o Mentorias E-commerce?' : 'Sair do app neste aparelho?\n\nPara entrar de novo vai pedir a senha.';
+  if (!confirm(msg)) return;
+  toggleMais(false);
+  toast('Salvando e sincronizando...', 'info');
+  clearTimeout(_syncTimer);
+  try {
+    await _filaSalvar;
+    if (SYNC.token) {
+      for (let i = 0; i < 20 && _sincronizando; i++) await new Promise(r => setTimeout(r, 250));
+      await sincronizar();
+      if (SYNC.estado === 'erro' && !confirm('Não foi possível sincronizar agora (' + SYNC.erro + ').\n\nSair mesmo assim? O que foi lançado ' + (window.api ? 'fica salvo neste computador e sincroniza quando abrir de novo.' : 'neste iPhone desde a última sincronização será perdido.'))) return;
+    }
+  } catch (e) {}
+  if (window.api) { window.close(); return; }
+  await guardarToken('');
+  localStorage.removeItem('mentorias-db');
+  location.reload();
 }
 async function desconectarSync() {
   if (!confirm(window.api ? 'Desligar a sincronização neste computador?\n\nOs dados continuam aqui e no iPhone; só param de se atualizar entre si.' : 'Sair deste aparelho?\n\nVocê vai precisar da senha para entrar de novo.')) return;
@@ -2138,7 +2163,59 @@ async function registrarSW() {
   try { await navigator.serviceWorker.register('sw.js'); } catch (e) {}
 }
 
-function mostrarLogin() {
+// ── Sessão: depois de 4 h sem usar, pede a senha de novo ──────────
+const SESSAO_MS = 4 * 60 * 60 * 1000;
+let _bloqueado = false, _ultimaMarca = 0;
+function lerAtividade() { try { return +(localStorage.getItem('mentorias-atividade') || 0); } catch (e) { return 0; } }
+function marcarAtividade(forcar) {
+  if (_bloqueado || !SYNC.token) return;
+  const agora = Date.now();
+  if (!forcar && agora - _ultimaMarca < 60000) return;
+  _ultimaMarca = agora;
+  try { localStorage.setItem('mentorias-atividade', String(agora)); } catch (e) {}
+}
+function sessaoExpirada() { const t = lerAtividade(); return !!t && Date.now() - t > SESSAO_MS; }
+async function verificarSessao() {
+  if (_bloqueado || !SYNC.token || !sessaoExpirada()) return;
+  await bloquear();
+}
+async function bloquear() {
+  _bloqueado = true;
+  document.querySelectorAll('.overlay.open').forEach(o => o.classList.remove('open'));
+  if (!window.api) {
+    // iPhone: esquece o token (os dados locais ficam e sincronizam no próximo login)
+    await guardarToken('');
+    try { sessionStorage.setItem('mentorias-expirou', '1'); } catch (e) {}
+    location.reload();
+    return;
+  }
+  mostrarLogin('Sessão expirada · digite a senha');
+}
+// Computador: confere a senha pelo acesso publicado; sem internet, usa a conferência guardada aqui
+async function hashSenha(senha, saltB64) {
+  const salt = saltB64 ? b64ParaBytes(saltB64) : crypto.getRandomValues(new Uint8Array(16));
+  const base = await crypto.subtle.importKey('raw', new TextEncoder().encode(senha), 'PBKDF2', false, ['deriveBits']);
+  const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', salt, iterations: 310000, hash: 'SHA-256' }, base, 256);
+  return { salt: bytesParaB64(salt), hash: bytesParaB64(new Uint8Array(bits)) };
+}
+async function guardarVerificador(senha) { try { localStorage.setItem('mentorias-verif', JSON.stringify(await hashSenha(senha))); } catch (e) {} }
+async function conferirSenhaDesktop(senha) {
+  let acesso = null;
+  try { acesso = await buscarAcesso(); } catch (e) {}
+  if (acesso) {
+    try { await decifrarToken(acesso, senha); } catch (e) { return false; }
+    await guardarVerificador(senha);
+    return true;
+  }
+  const v = JSON.parse(localStorage.getItem('mentorias-verif') || 'null');
+  if (!v) throw new Error('Sem internet para conferir a senha — tente de novo em instantes');
+  return (await hashSenha(senha, v.salt)).hash === v.hash;
+}
+
+function mostrarLogin(msg) {
+  $('login-msg').textContent = msg || 'Acesso restrito';
+  $('login-senha').value = '';
+  $('login-erro').textContent = '';
   $('login-screen').style.display = 'flex';
   setTimeout(() => $('login-senha').focus(), 300);
 }
@@ -2150,8 +2227,18 @@ async function fazerLogin(ev) {
   btn.disabled = true; btn.textContent = 'Entrando...';
   $('login-erro').textContent = '';
   try {
+    if (window.api) {
+      if (!(await conferirSenhaDesktop(s))) throw new Error('Senha incorreta');
+      _bloqueado = false;
+      $('login-screen').style.display = 'none';
+      marcarAtividade(true);
+      sincronizar();
+      return;
+    }
     await entrarComSenha(s);
-    $('login-screen').remove();
+    _bloqueado = false;
+    marcarAtividade(true);
+    $('login-screen').style.display = 'none';
     await iniciarApp();
   } catch (e) {
     $('login-erro').textContent = e.message;
@@ -2166,10 +2253,16 @@ async function init() {
   registrarSW();
   document.querySelectorAll('[data-page]').forEach(n => n.addEventListener('click', () => { toggleMais(false); ir(n.dataset.page); }));
   new MutationObserver(() => rotularTabelas()).observe(document.body, { childList: true, subtree: true });
+  ['pointerdown', 'keydown', 'touchstart'].forEach(ev => document.addEventListener(ev, () => marcarAtividade(), { passive: true }));
   await carregarToken();
-  if (EM_PAGES && !SYNC.token) { mostrarLogin(); return; }
-  const ls = $('login-screen'); if (ls) ls.remove();
+  let expirou = false;
+  try { expirou = sessionStorage.getItem('mentorias-expirou') === '1'; sessionStorage.removeItem('mentorias-expirou'); } catch (e) {}
+  if (EM_PAGES && SYNC.token && sessaoExpirada()) { await guardarToken(''); expirou = true; }
+  if (EM_PAGES && !SYNC.token) { mostrarLogin(expirou ? 'Sessão expirada · digite a senha' : ''); return; }
+  $('login-screen').style.display = 'none';
+  const travar = window.api && SYNC.token && sessaoExpirada();
   await iniciarApp();
+  if (travar) bloquear(); else marcarAtividade(true);
 }
 
 async function iniciarApp() {
@@ -2203,7 +2296,12 @@ async function iniciarApp() {
   }, 60000);
   // Busca alterações do outro aparelho: a cada 15 s com o app aberto, e ao voltar para ele
   setInterval(() => { if (SYNC.token && document.visibilityState === 'visible') sincronizar(); }, 15000);
-  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && SYNC.token) sincronizar(); });
+  setInterval(verificarSessao, 60000);
+  document.addEventListener('visibilitychange', async () => {
+    if (document.visibilityState !== 'visible') return;
+    await verificarSessao(); // voltou ao app depois de muito tempo → pede a senha antes de tudo
+    if (SYNC.token) sincronizar();
+  });
   window.addEventListener('online', () => { if (SYNC.token) sincronizar(); });
 }
 
