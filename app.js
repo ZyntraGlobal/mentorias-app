@@ -396,13 +396,17 @@ async function derivarChave(senha, salt) {
 }
 const bytesParaB64 = b => btoa(String.fromCharCode(...b));
 const b64ParaBytes = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
-async function cifrarToken(token, senha) {
+// Login = usuário + senha: os dois entram juntos na chave (sem o usuário certo, a senha não abre)
+const credencial = (usuario, senha) => String(usuario || '').trim().toLowerCase() + '\u0000' + senha;
+async function cifrarToken(token, usuario, senha) {
   const salt = crypto.getRandomValues(new Uint8Array(16)), iv = crypto.getRandomValues(new Uint8Array(12));
-  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, await derivarChave(senha, salt), new TextEncoder().encode(token));
-  return { v: 1, salt: bytesParaB64(salt), iv: bytesParaB64(iv), ct: bytesParaB64(new Uint8Array(ct)) };
+  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, await derivarChave(credencial(usuario, senha), salt), new TextEncoder().encode(token));
+  return { v: 2, salt: bytesParaB64(salt), iv: bytesParaB64(iv), ct: bytesParaB64(new Uint8Array(ct)) };
 }
-async function decifrarToken(acesso, senha) {
-  const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: b64ParaBytes(acesso.iv) }, await derivarChave(senha, b64ParaBytes(acesso.salt)), b64ParaBytes(acesso.ct));
+async function decifrarToken(acesso, usuario, senha) {
+  // v1 (antes do login com usuário) usava só a senha
+  const material = acesso.v >= 2 ? credencial(usuario, senha) : senha;
+  const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: b64ParaBytes(acesso.iv) }, await derivarChave(material, b64ParaBytes(acesso.salt)), b64ParaBytes(acesso.ct));
   return new TextDecoder().decode(pt);
 }
 async function buscarAcesso() {
@@ -412,24 +416,24 @@ async function buscarAcesso() {
   return r.json();
 }
 // Entrar usando a senha (iPhone, ou outro computador)
-async function entrarComSenha(senha) {
+async function entrarComSenha(usuario, senha) {
   const acesso = await buscarAcesso();
   if (!acesso) throw new Error('O acesso ainda não foi configurado no computador (Configurações → iPhone).');
   let token;
-  try { token = await decifrarToken(acesso, senha); } catch (e) { throw new Error('Senha incorreta'); }
+  try { token = await decifrarToken(acesso, usuario, senha); } catch (e) { throw new Error('Usuário ou senha incorretos'); }
   await guardarToken(token);
-  if (window.api) await guardarVerificador(senha);
+  if (window.api) await guardarVerificador(usuario, senha);
   marcarAtividade(true);
 }
-// Primeira configuração (no computador): valida o token, publica o acesso cifrado e envia os dados
-async function configurarSync(token, senha) {
+// Primeira configuração / troca de login (no computador): valida o token, publica o acesso cifrado
+async function configurarSync(token, usuario, senha) {
   await ghGetArquivo(API_DADOS, token); // lança erro se o token não acessar o repo de dados
   const atual = await ghGetArquivo(API_ACESSO, token).catch(e => { throw new Error('O token precisa de acesso também ao repositório ' + GH_REPO_APP); });
-  const acesso = await cifrarToken(token, senha);
+  const acesso = await cifrarToken(token, usuario, senha);
   const r = await ghPutArquivo(API_ACESSO, JSON.stringify(acesso), atual.sha, 'acesso iphone', token);
   if (!r.ok) throw new Error('não foi possível publicar o acesso — tente de novo');
   await guardarToken(token);
-  if (window.api) await guardarVerificador(senha);
+  if (window.api) await guardarVerificador(usuario, senha);
   marcarAtividade(true);
 }
 
@@ -719,11 +723,14 @@ function drawBars(cv, labels, series, opts = {}) {
   const c = cv.getContext('2d');
   c.setTransform(dpr, 0, 0, dpr, 0, 0);
   c.clearRect(0, 0, W, H);
-  const L = 62, R = 8, T = 12, B = 26, pw = W - L - R, ph = H - T - B, n = labels.length;
   const tot = labels.map((_, i) => series.reduce((s, se) => s + (se.values[i] || 0), 0));
   const step = niceStep(Math.max(...tot, 1) / 4);
   const max = Math.max(step * 4, Math.ceil(Math.max(...tot, 1) / step) * step);
   c.font = '11px "Segoe UI", sans-serif';
+  // margem esquerda só do tamanho dos valores do eixo (sobra mais espaço para os meses no iPhone)
+  let larguraEixo = 0;
+  for (let v = 0; v <= max + 0.001; v += step) larguraEixo = Math.max(larguraEixo, c.measureText(opts.fmt ? opts.fmt(v) : String(v)).width);
+  const L = Math.ceil(larguraEixo) + 12, R = 6, T = 12, B = 26, pw = W - L - R, ph = H - T - B, n = labels.length;
   for (let v = 0; v <= max + 0.001; v += step) {
     const y = T + ph - (v / max) * ph;
     c.strokeStyle = 'rgba(148,163,184,0.12)'; c.lineWidth = 1;
@@ -732,9 +739,11 @@ function drawBars(cv, labels, series, opts = {}) {
     c.fillText(opts.fmt ? opts.fmt(v) : String(v), L - 8, y);
   }
   const slot = pw / n, bw = Math.min(36, slot * 0.62);
-  // Em tela estreita (iPhone) mostra só os rótulos que cabem, sempre incluindo o mês destacado
-  c.font = 'bold 11px "Segoe UI", sans-serif';
-  const larguraRotulo = Math.max(...labels.map(l => c.measureText(l).width)) + 8;
+  // Em tela estreita usa rótulo curto (só o mês) e fonte menor; se ainda não couber, pula alguns
+  const rotulos = (opts.curtos && slot < 44) ? opts.curtos : labels;
+  const fonteRot = slot < 30 ? 10 : 11;
+  c.font = `bold ${fonteRot}px "Segoe UI", sans-serif`;
+  const larguraRotulo = Math.max(...rotulos.map(l => c.measureText(l).width)) + 4;
   const passo = Math.max(1, Math.ceil(larguraRotulo / slot));
   const ref = opts.destaque || 0;
   labels.forEach((lb, i) => {
@@ -750,9 +759,9 @@ function drawBars(cv, labels, series, opts = {}) {
     });
     if ((i - ref) % passo !== 0) return;
     c.fillStyle = i === opts.destaque ? '#F1F5F9' : '#64748B';
-    c.font = (i === opts.destaque ? 'bold ' : '') + '11px "Segoe UI", sans-serif';
+    c.font = (i === opts.destaque ? 'bold ' : '') + fonteRot + 'px "Segoe UI", sans-serif';
     c.textAlign = 'center'; c.textBaseline = 'top';
-    c.fillText(lb, x + bw / 2, T + ph + 8);
+    c.fillText(rotulos[i], x + bw / 2, T + ph + 8);
   });
   cv.onmousemove = e => {
     const r = cv.getBoundingClientRect();
@@ -778,7 +787,7 @@ function desenharGraficoReceita(id) {
   requestAnimationFrame(() => drawBars($(id), meses.map(fmtMes), [
     { nome: 'Recebido', cor: '#10B981', values: rec },
     { nome: 'A receber / atrasado', cor: i => cores[i], values: ab }
-  ], { fmt: fmtCurto, fmtFull: fmtBRL, destaque: 5 }));
+  ], { fmt: fmtCurto, fmtFull: fmtBRL, destaque: 5, curtos: meses.map(m => MESES_CURTO[+m.slice(5) - 1]) }));
 }
 
 // ============================================================
@@ -1140,6 +1149,7 @@ async function renderConfig() {
       </div>
     </div>
   </div>`;
+  avisarLoginAntigo();
   if (window.api) { const cam = await window.api.caminhoArquivo(); if ($('cf-caminho')) $('cf-caminho').textContent = cam; }
 }
 function cardSync() {
@@ -1150,61 +1160,76 @@ function cardSync() {
       🔒 Por segurança, depois de <b>4 horas sem uso</b> o app pede a senha de novo (no computador e no iPhone).</div>
       <div class="flex gap-8" style="flex-wrap:wrap">
         <button class="btn btn-primary" onclick="sincronizar(true)">🔄 Sincronizar agora</button>
-        ${window.api ? `<button class="btn btn-ghost" onclick="$('cf-troca').style.display=''">🔑 Trocar senha do iPhone</button>` : ''}
+        ${window.api ? `<button class="btn btn-ghost" onclick="$('cf-troca').style.display=''">🔑 Trocar usuário e senha</button>` : ''}
         <button class="btn btn-danger" onclick="desconectarSync()">${window.api ? 'Desligar sincronização neste computador' : 'Sair deste aparelho'}</button>
       </div>
-      <div id="cf-troca" style="display:none" class="mt-16"><div class="form-row col3" style="align-items:end">
-        <div class="form-group"><label>Nova senha do iPhone</label><input id="cf-nova-senha" type="password" autocomplete="new-password"></div>
+      <div id="cf-troca" style="display:none" class="mt-16">
+        <div class="alerta alerta-warn" id="cf-troca-aviso" style="display:none"><span>🔑</span><div class="grow">Defina o <b>usuário e a senha</b> de login do app — valem para o iPhone e para destravar o computador.</div></div>
+        <div class="form-row col4" style="align-items:end">
+        <div class="form-group"><label>Usuário</label><input id="cf-novo-usuario" autocomplete="username" autocapitalize="none"></div>
+        <div class="form-group"><label>Nova senha</label><input id="cf-nova-senha" type="password" autocomplete="new-password"></div>
         <div class="form-group"><label>Repita a senha</label><input id="cf-nova-senha2" type="password" autocomplete="new-password"></div>
-        <div class="form-group"><button class="btn btn-primary" onclick="trocarSenhaIphone()">Salvar nova senha</button></div></div></div>`;
+        <div class="form-group"><button class="btn btn-primary" onclick="trocarSenhaIphone()">Salvar login</button></div></div></div>`;
   } else {
     h += `<div class="cards-grid grid-2">
       <div><div class="card-label">Já configurei antes</div>
-        <div class="card-sub mb-16">Se a sincronização já foi ativada em outro aparelho, é só entrar com a senha do app.</div>
-        <div class="form-group"><label>Senha do app</label><input id="cf-login-senha" type="password" onkeydown="if(event.key==='Enter')entrarSyncSenha()"></div>
+        <div class="card-sub mb-16">Se a sincronização já foi ativada em outro aparelho, é só entrar com o usuário e a senha do app.</div>
+        <div class="form-row col2">
+          <div class="form-group"><label>Usuário</label><input id="cf-login-usuario" autocomplete="username" autocapitalize="none"></div>
+          <div class="form-group"><label>Senha</label><input id="cf-login-senha" type="password" onkeydown="if(event.key==='Enter')entrarSyncSenha()"></div></div>
         <button class="btn btn-primary" onclick="entrarSyncSenha()">Entrar e sincronizar</button></div>
       ${window.api ? `<div><div class="card-label">Primeira configuração</div>
         <div class="card-sub mb-16">Cole o token do GitHub (acesso só aos repositórios <b>${GH_REPO_DADOS}</b> e <b>${GH_REPO_APP}</b>) e crie a senha que você vai usar para entrar no iPhone. O token fica guardado só neste computador; o iPhone recebe uma cópia protegida pela senha.</div>
         <div class="form-group"><label>Token do GitHub</label><input id="cf-token" type="password" placeholder="github_pat_..." autocomplete="off"></div>
-        <div class="form-row col2">
-          <div class="form-group"><label>Senha do iPhone (mín. 8)</label><input id="cf-senha" type="password" autocomplete="new-password"></div>
+        <div class="form-row col3">
+          <div class="form-group"><label>Usuário</label><input id="cf-usuario" autocomplete="username" autocapitalize="none"></div>
+          <div class="form-group"><label>Senha (mín. 8)</label><input id="cf-senha" type="password" autocomplete="new-password"></div>
           <div class="form-group"><label>Repita a senha</label><input id="cf-senha2" type="password" autocomplete="new-password"></div></div>
         <button class="btn btn-success" onclick="ativarSync()">Ativar sincronização</button></div>` : ''}
     </div>`;
   }
   return h + `</div>`;
 }
-function validarSenhaNova(s1, s2) {
+function validarSenhaNova(u, s1, s2) {
+  if (!String(u || '').trim()) { toast('Informe o usuário', 'error'); return false; }
   if (s1.length < 8) { toast('A senha precisa ter pelo menos 8 caracteres', 'error'); return false; }
   if (s1 !== s2) { toast('As senhas não conferem', 'error'); return false; }
   return true;
 }
 async function ativarSync() {
-  const token = $('cf-token').value.trim(), s1 = $('cf-senha').value, s2 = $('cf-senha2').value;
+  const token = $('cf-token').value.trim(), u = $('cf-usuario').value, s1 = $('cf-senha').value, s2 = $('cf-senha2').value;
   if (!token) { toast('Cole o token do GitHub', 'error'); return; }
-  if (!validarSenhaNova(s1, s2)) return;
+  if (!validarSenhaNova(u, s1, s2)) return;
   toast('Configurando...', 'info');
   try {
-    await configurarSync(token, s1);
+    await configurarSync(token, u, s1);
     toast('Sincronização ativada ✓ — já pode entrar no iPhone');
     renderTudo();
     await sincronizar(true);
   } catch (e) { toast('Não deu certo: ' + e.message, 'error'); }
 }
 async function entrarSyncSenha() {
-  const s = $('cf-login-senha').value;
+  const u = $('cf-login-usuario').value, s = $('cf-login-senha').value;
   if (!s) return;
   try {
-    await entrarComSenha(s);
+    await entrarComSenha(u, s);
     renderTudo();
     await sincronizar(true);
   } catch (e) { toast(e.message, 'error'); }
 }
 async function trocarSenhaIphone() {
-  const s1 = $('cf-nova-senha').value, s2 = $('cf-nova-senha2').value;
-  if (!validarSenhaNova(s1, s2)) return;
-  try { await configurarSync(SYNC.token, s1); toast('Senha do iPhone trocada ✓'); renderTudo(); }
+  const u = $('cf-novo-usuario').value, s1 = $('cf-nova-senha').value, s2 = $('cf-nova-senha2').value;
+  if (!validarSenhaNova(u, s1, s2)) return;
+  try { await configurarSync(SYNC.token, u, s1); toast('Login salvo ✓ — use o novo usuário e senha no iPhone'); renderTudo(); }
   catch (e) { toast('Não deu certo: ' + e.message, 'error'); }
+}
+// Se o acesso publicado ainda é do tipo antigo (só senha), já abre o formulário de login
+async function avisarLoginAntigo() {
+  if (!window.api || !SYNC.token) return;
+  try {
+    const a = await buscarAcesso();
+    if (a && !(a.v >= 2) && $('cf-troca')) { $('cf-troca').style.display = ''; $('cf-troca-aviso').style.display = ''; }
+  } catch (e) {}
 }
 // Botão "Sair": sincroniza o que falta e então fecha (computador) ou tranca com a senha (iPhone)
 async function sair() {
@@ -1253,7 +1278,25 @@ function salvarConfig() {
 // MODAIS — base
 // ============================================================
 let _zTop = 1000;
-function abrirModal(id) { const el = $(id); el.style.zIndex = ++_zTop; el.classList.add('open'); }
+function abrirModal(id) {
+  const el = $(id);
+  el.style.zIndex = ++_zTop;
+  garantirVoltar(id);
+  el.classList.add('open');
+  const corpo = el.querySelector('.modal-body');
+  if (corpo) corpo.scrollTop = 0;
+}
+// No celular toda janela ganha um botão grande "‹ Voltar" no topo
+function garantirVoltar(id) {
+  const header = $(id).querySelector('.modal-header');
+  if (!header || header.querySelector('.btn-voltar')) return;
+  const b = document.createElement('button');
+  b.className = 'btn-voltar';
+  b.type = 'button';
+  b.textContent = '‹ Voltar';
+  b.onclick = () => fecharOverlay(id);
+  header.prepend(b);
+}
 function fecharModal(id) {
   $(id).classList.remove('open');
   // chegou alteração do outro aparelho enquanto o formulário estava aberto
@@ -1844,6 +1887,7 @@ function renderDetalhe() {
     <div class="flex gap-8 items-center">${al.whatsapp ? `<button class="btn btn-whats btn-sm" onclick="abrirWhats('${al.id}')">💬 WhatsApp</button>` : ''}
       <button class="btn btn-ghost btn-sm" onclick="editarAluno('${al.id}')">✏️ Editar</button>
       <button class="modal-close" onclick="fecharModal('modal-detalhe')">×</button></div>`;
+  garantirVoltar('modal-detalhe');
   const nA = aulasDoAluno(al.id).length, nP = pagsDoAluno(al.id).length;
   const tabs = [['resumo', 'Resumo'], ['aulas', `Aulas<span class="n">${nA}</span>`], ['pagamentos', `Pagamentos<span class="n">${nP}</span>`], ['evolucao', `Resultados<span class="n">${al.evolucao.length}</span>`], ['notas', `Anotações<span class="n">${al.notas.length}</span>`]];
   let h = `<div class="tabs">${tabs.map(([k, l]) => `<div class="tab ${detTab === k ? 'active' : ''}" onclick="setDetTab('${k}')">${l}</div>`).join('')}</div>`;
@@ -1927,7 +1971,7 @@ function detEvolucao(al) {
 function desenharEvolucao(al) {
   const l = al.evolucao.slice().sort((a, b) => a.mes.localeCompare(b.mes));
   if (!l.length) return;
-  requestAnimationFrame(() => drawBars($('graf-evo'), l.map(e => fmtMes(e.mes)), [{ nome: 'Faturamento', cor: corValida(al.cor), values: l.map(e => num(e.faturamento)) }], { fmt: fmtCurto, fmtFull: fmtBRL }));
+  requestAnimationFrame(() => drawBars($('graf-evo'), l.map(e => fmtMes(e.mes)), [{ nome: 'Faturamento', cor: corValida(al.cor), values: l.map(e => num(e.faturamento)) }], { fmt: fmtCurto, fmtFull: fmtBRL, curtos: l.map(e => MESES_CURTO[+e.mes.slice(5) - 1]) }));
 }
 function detNotas(al) {
   const l = al.notas.slice().sort((a, b) => b.data.localeCompare(a.data));
@@ -2198,44 +2242,50 @@ async function hashSenha(senha, saltB64) {
   const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', salt, iterations: 310000, hash: 'SHA-256' }, base, 256);
   return { salt: bytesParaB64(salt), hash: bytesParaB64(new Uint8Array(bits)) };
 }
-async function guardarVerificador(senha) { try { localStorage.setItem('mentorias-verif', JSON.stringify(await hashSenha(senha))); } catch (e) {} }
-async function conferirSenhaDesktop(senha) {
+async function guardarVerificador(usuario, senha) { try { localStorage.setItem('mentorias-verif', JSON.stringify(await hashSenha(credencial(usuario, senha)))); } catch (e) {} }
+async function conferirSenhaDesktop(usuario, senha) {
   let acesso = null;
   try { acesso = await buscarAcesso(); } catch (e) {}
   if (acesso) {
-    try { await decifrarToken(acesso, senha); } catch (e) { return false; }
-    await guardarVerificador(senha);
+    try { await decifrarToken(acesso, usuario, senha); } catch (e) { return false; }
+    await guardarVerificador(usuario, senha);
     return true;
   }
   const v = JSON.parse(localStorage.getItem('mentorias-verif') || 'null');
-  if (!v) throw new Error('Sem internet para conferir a senha — tente de novo em instantes');
-  return (await hashSenha(senha, v.salt)).hash === v.hash;
+  if (!v) throw new Error('Sem internet para conferir o login — tente de novo em instantes');
+  return (await hashSenha(credencial(usuario, senha), v.salt)).hash === v.hash;
 }
 
 function mostrarLogin(msg) {
   $('login-msg').textContent = msg || 'Acesso restrito';
+  let ultimo = '';
+  try { ultimo = localStorage.getItem('mentorias-usuario') || ''; } catch (e) {}
+  $('login-usuario').value = ultimo;
   $('login-senha').value = '';
   $('login-erro').textContent = '';
   $('login-screen').style.display = 'flex';
-  setTimeout(() => $('login-senha').focus(), 300);
+  setTimeout(() => (ultimo ? $('login-senha') : $('login-usuario')).focus(), 300);
 }
 async function fazerLogin(ev) {
   if (ev) ev.preventDefault();
-  const s = $('login-senha').value;
+  const u = $('login-usuario').value.trim(), s = $('login-senha').value;
+  if (!u) { $('login-erro').textContent = 'Informe o usuário'; return; }
   if (!s) return;
   const btn = $('login-btn');
   btn.disabled = true; btn.textContent = 'Entrando...';
   $('login-erro').textContent = '';
   try {
     if (window.api) {
-      if (!(await conferirSenhaDesktop(s))) throw new Error('Senha incorreta');
+      if (!(await conferirSenhaDesktop(u, s))) throw new Error('Usuário ou senha incorretos');
+      try { localStorage.setItem('mentorias-usuario', u); } catch (e) {}
       _bloqueado = false;
       $('login-screen').style.display = 'none';
       marcarAtividade(true);
       sincronizar();
       return;
     }
-    await entrarComSenha(s);
+    await entrarComSenha(u, s);
+    try { localStorage.setItem('mentorias-usuario', u); } catch (e) {}
     _bloqueado = false;
     marcarAtividade(true);
     $('login-screen').style.display = 'none';
