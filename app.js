@@ -306,7 +306,8 @@ async function carregarToken() {
   try {
     if (window.api) { const s = await window.api.lerSync(); SYNC.token = (s && s.token) || ''; }
     else SYNC.token = localStorage.getItem('mentorias-token') || '';
-  } catch (e) { SYNC.token = ''; }
+  } catch (e) { SYNC.token = ''; logSync('ERRO ao ler token: ' + e.message); }
+  logSync('app aberto · sincronização ' + (SYNC.token ? 'ligada' : 'DESLIGADA (sem token)'));
 }
 async function guardarToken(token) {
   SYNC.token = token || '';
@@ -382,37 +383,47 @@ function agendarSync(ms) {
   clearTimeout(_syncTimer);
   _syncTimer = setTimeout(() => sincronizar(), ms == null ? 1500 : ms);
 }
-async function sincronizar(manual, tentativa) {
+function logSync(msg) {
+  try { if (window.api && window.api.logSync) window.api.logSync(msg); } catch (e) {}
+}
+let _syncInicio = 0, _falhasSeguidas = 0;
+async function sincronizar(manual) {
   if (!SYNC.token) { if (manual) toast('Sincronização não configurada — veja Configurações', 'error'); return; }
-  if (_sincronizando) { _syncPendente = true; return; }
+  // trava de segurança: uma sincronização nunca pode bloquear as outras por mais de 60 s
+  if (_sincronizando && Date.now() - _syncInicio < 60000) { _syncPendente = true; return; }
+  if (_sincronizando) logSync('sincronização anterior travada — liberando');
   _sincronizando = true;
-  SYNC.estado = 'sync'; renderSyncStatus();
+  _syncInicio = Date.now();
   try {
-    const rem = await ghGetArquivo(API_DADOS);
-    const remoto = rem.data ? normalizar(rem.data) : null;
-    const merged = remoto ? mesclar(DB, remoto) : DB;
-    const mudouLocal = dadosSemMeta(merged) !== dadosSemMeta(DB);
-    if (mudouLocal) {
-      DB = normalizar(merged);
-      DB._savedAt = Date.now();
-      atualizarBase();
-      gravarLocal();
-      if (algumModalAberto()) _renderPendente = true; else renderTudo();
-    }
-    if (!remoto || dadosSemMeta(DB) !== dadosSemMeta(remoto)) {
-      const r = await ghPutArquivo(API_DADOS, JSON.stringify(DB, null, 2), rem.sha, 'sync ' + (window.api ? 'desktop' : 'iphone'));
-      if (r.conflito) {
-        // outro aparelho gravou no meio do caminho — mescla de novo
-        _sincronizando = false;
-        if ((tentativa || 0) < 3) return sincronizar(manual, (tentativa || 0) + 1);
-        throw new Error('conflito repetido ao gravar');
+    SYNC.estado = 'sync'; renderSyncStatus();
+    for (let tentativa = 0; ; tentativa++) {
+      const rem = await ghGetArquivo(API_DADOS);
+      const remoto = rem.data ? normalizar(rem.data) : null;
+      const merged = remoto ? mesclar(DB, remoto) : DB;
+      if (dadosSemMeta(merged) !== dadosSemMeta(DB)) {
+        DB = normalizar(merged);
+        DB._savedAt = Date.now();
+        atualizarBase();
+        gravarLocal();
+        logSync('recebeu alterações do outro aparelho');
+        if (algumModalAberto()) _renderPendente = true; else renderTudo();
       }
+      if (remoto && dadosSemMeta(DB) === dadosSemMeta(remoto)) break; // já está igual
+      const r = await ghPutArquivo(API_DADOS, JSON.stringify(DB, null, 2), rem.sha, 'sync ' + (window.api ? 'desktop' : 'iphone'));
+      if (!r.conflito) { logSync('enviou alterações'); break; }
+      // outro aparelho gravou no meio do caminho — busca de novo e mescla
+      logSync('conflito ao gravar (tentativa ' + (tentativa + 1) + ')');
+      if (tentativa >= 4) throw new Error('conflito repetido ao gravar');
+      await new Promise(res => setTimeout(res, 400 + Math.random() * 800));
     }
-    SYNC.estado = 'ok'; SYNC.erro = ''; SYNC.ultima = Date.now();
+    if (SYNC.estado !== 'ok' || _falhasSeguidas) logSync('ok');
+    SYNC.estado = 'ok'; SYNC.erro = ''; SYNC.ultima = Date.now(); _falhasSeguidas = 0;
     if (manual) toast('Sincronizado ✓');
   } catch (e) {
     SYNC.estado = 'erro';
-    SYNC.erro = e.name === 'AbortError' ? 'sem conexão' : e.message;
+    SYNC.erro = e.name === 'AbortError' ? 'sem conexão' : (e.message === 'Failed to fetch' ? 'sem conexão com o GitHub' : e.message);
+    _falhasSeguidas++;
+    logSync('ERRO: ' + (e && (e.stack || e.message) || e));
     if (manual) toast('Falha ao sincronizar: ' + SYNC.erro, 'error');
   } finally {
     _sincronizando = false;
@@ -431,6 +442,13 @@ function renderSyncStatus() {
     : SYNC.ultima ? 'Sincronizado às ' + new Date(SYNC.ultima).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) + ' — clique para sincronizar agora' : 'Sincronizar agora';
   const st = $('cf-sync-status');
   if (st) st.innerHTML = syncStatusHTML();
+  // aviso bem visível quando não está conseguindo sincronizar (2+ falhas seguidas)
+  const av = $('aviso-sync');
+  if (av) {
+    const mostrar = SYNC.token && SYNC.estado === 'erro' && _falhasSeguidas >= 2;
+    av.style.display = mostrar ? '' : 'none';
+    if (mostrar) $('aviso-sync-txt').textContent = `Não está sincronizando (${SYNC.erro}). O que você lançar fica salvo ${window.api ? 'neste computador' : 'neste iPhone'} e vai para o outro aparelho quando voltar.`;
+  }
 }
 function syncStatusHTML() {
   if (!SYNC.token) return badge('Desligada', 'gray');
@@ -2632,6 +2650,7 @@ async function iniciarApp() {
     if (SYNC.token) sincronizar();
   });
   window.addEventListener('online', () => { if (SYNC.token) sincronizar(); });
+  window.addEventListener('focus', () => { if (SYNC.token && !_bloqueado) sincronizar(); }); // voltou para a janela do app
 }
 
 init();

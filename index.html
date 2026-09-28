@@ -478,6 +478,10 @@ tr.linha-apagada td { opacity: 0.55; }
       <div class="actions" id="topbar-actions"></div>
     </div>
   </div>
+  <div class="alerta alerta-danger" id="aviso-sync" style="display:none;margin:0;border-radius:0;border-left:none;border-right:none">
+    <span style="font-size:18px">⚠️</span><div class="grow" id="aviso-sync-txt"></div>
+    <button class="btn btn-ghost btn-sm" onclick="sincronizar(true)">Tentar agora</button>
+  </div>
   <div class="content" id="content">
     <section class="page" id="page-dashboard"></section>
     <section class="page" id="page-agenda"></section>
