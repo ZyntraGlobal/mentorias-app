@@ -29,6 +29,12 @@ const FREQ = {
   mensal:    { l: 'Mensal',    meses: 1 }
 };
 const PLATAFORMAS = ['Shopify', 'Nuvemshop', 'Tray', 'Loja Integrada', 'WooCommerce', 'Yampi', 'Mercado Livre', 'Shopee', 'Amazon', 'Magalu', 'TikTok Shop', 'Ainda não tem loja', 'Outra'];
+const MODOS = {
+  mensal:  { l: 'Pacote parcelado (mensal)', curto: 'Parcelado' },
+  avista:  { l: 'Pacote à vista (valor total)', curto: 'À vista' },
+  semanal: { l: 'Por semana', curto: 'Por semana' },
+  aula:    { l: 'Por aula', curto: 'Por aula' }
+};
 const FORMAS = ['Pix', 'Cartão de crédito', 'Boleto', 'Transferência', 'Dinheiro', 'Outro'];
 const DIAS_SEM = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
 const DIAS_SEM_LONGO = ['domingo', 'segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado'];
@@ -457,6 +463,13 @@ function finAluno(id) {
   const atrasados = ps.filter(p => statusPag(p) === 'atrasado');
   return { qtd: ps.length, cobrado, pago, aberto: cobrado - pago, atrasado: soma(atrasados, p => p.valor), qtdAtrasado: atrasados.length };
 }
+const pacote = al => !al.modoCobranca || al.modoCobranca === 'mensal' || al.modoCobranca === 'avista';
+function textoModo(al) {
+  const m = al.modoCobranca || 'mensal';
+  if (m === 'aula') return al.valorUnit ? `${fmtBRL(al.valorUnit)} por aula` : 'Por aula';
+  if (m === 'semanal') return al.valorUnit ? `${fmtBRL(al.valorUnit)} por semana` : 'Por semana';
+  return (m === 'avista' ? 'À vista' : 'Parcelado') + (al.valor ? ' · ' + fmtBRL(al.valor) : '');
+}
 function badgeFin(id) {
   const f = finAluno(id);
   if (!f.qtd) return badge('Sem cobranças', 'gray');
@@ -549,7 +562,7 @@ const PAGINAS = {
     sub: () => { const d = new Date(); return `Olá, ${DB.config.mentor || 'mentor'} · ${DIAS_SEM_LONGO[d.getDay()]}, ${d.getDate()} de ${MESES[d.getMonth()]} de ${d.getFullYear()}`; },
     acoes: `<button class="btn btn-ghost" onclick="novaCobranca()">+ Cobrança</button><button class="btn btn-ghost" onclick="novoAluno()">+ Mentorado</button><button class="btn btn-primary" onclick="novaAula()">+ Nova aula</button>`
   },
-  agenda: { t: 'Agenda', r: () => renderAgenda(), sub: () => 'Clique em um dia para agendar uma aula', acoes: `<button class="btn btn-primary" onclick="novaAula()">+ Nova aula</button>` },
+  agenda: { t: 'Agenda', r: () => renderAgenda(), sub: () => 'Clique em um dia para ver todas as aulas dele', acoes: `<button class="btn btn-primary" onclick="novaAula()">+ Nova aula</button>` },
   aulas: { t: 'Aulas', r: () => renderAulas(), sub: () => 'Datas, horários, temas e registro de cada encontro', acoes: `<button class="btn btn-primary" onclick="novaAula()">+ Nova aula</button>` },
   alunos: { t: 'Mentorados', r: () => renderAlunos(), sub: () => 'Clique em um mentorado para ver tudo sobre ele', acoes: `<button class="btn btn-primary" onclick="novoAluno()">+ Novo mentorado</button>` },
   programas: { t: 'Programas & Temas', r: () => renderProgramas(), sub: () => 'Modelos de mentoria com a sequência de temas das aulas', acoes: `<button class="btn btn-primary" onclick="novoPrograma()">+ Novo programa</button>` },
@@ -604,7 +617,7 @@ function renderDashboard() {
   const abertoMes = soma(DB.pagamentos.filter(p => !p.pagoEm && p.vencimento.slice(0, 7) === mes), p => p.valor);
   const atrasados = DB.pagamentos.filter(p => statusPag(p) === 'atrasado');
   const pend = DB.aulas.filter(aulaPendenteConfirmacao);
-  const proximas = DB.aulas.filter(a => a.status === 'agendada' && fimAula(a) >= agora).sort(porDataHora).slice(0, 7);
+  const proximas = DB.aulas.filter(a => a.status === 'agendada' && fimAula(a) >= agora && a.data !== hoje).sort(porDataHora).slice(0, 7);
   const vencendo = DB.pagamentos.filter(p => !p.pagoEm && p.vencimento <= addDias(hoje, 10)).sort((a, b) => a.vencimento.localeCompare(b.vencimento)).slice(0, 7);
 
   let h = '';
@@ -621,6 +634,11 @@ function renderDashboard() {
   if (atrasados.length) {
     const nAl = new Set(atrasados.map(p => p.alunoId)).size;
     h += `<div class="alerta alerta-danger"><span style="font-size:20px">💸</span><div class="grow"><b>${plural(atrasados.length, 'pagamento em atraso', 'pagamentos em atraso')}</b> somando <b>${fmtBRL(soma(atrasados, p => p.valor))}</b> (${plural(nAl, 'mentorado')}).</div><button class="btn btn-ghost btn-sm" onclick="filtros.fin.status='atrasado';ir('financeiro')">Ver cobranças</button></div>`;
+  }
+
+  if (aulasHoje.length) {
+    h += `<div class="card mb-16"><div class="card-head"><h3>🗓 Suas aulas de hoje <span class="muted" style="font-weight:500;font-size:12px">· ${plural(aulasHoje.length, 'aula')} · ${aulasHoje.filter(aulaConsumida).length} feita${aulasHoje.filter(aulaConsumida).length === 1 ? '' : 's'}</span></h3>
+      <button class="btn btn-ghost btn-xs" onclick="novaAula({data:'${hoje}'})">+ Aula hoje</button></div>${timelineDia(hoje)}</div>`;
   }
 
   h += `<div class="cards-grid grid-4 mb-16">
@@ -710,6 +728,11 @@ function drawBars(cv, labels, series, opts = {}) {
     c.fillText(opts.fmt ? opts.fmt(v) : String(v), L - 8, y);
   }
   const slot = pw / n, bw = Math.min(36, slot * 0.62);
+  // Em tela estreita (iPhone) mostra só os rótulos que cabem, sempre incluindo o mês destacado
+  c.font = 'bold 11px "Segoe UI", sans-serif';
+  const larguraRotulo = Math.max(...labels.map(l => c.measureText(l).width)) + 8;
+  const passo = Math.max(1, Math.ceil(larguraRotulo / slot));
+  const ref = opts.destaque || 0;
   labels.forEach((lb, i) => {
     const x = L + slot * i + (slot - bw) / 2;
     let y = T + ph;
@@ -721,6 +744,7 @@ function drawBars(cv, labels, series, opts = {}) {
       c.fillRect(x, y - h, bw, h - 1);
       y -= h;
     });
+    if ((i - ref) % passo !== 0) return;
     c.fillStyle = i === opts.destaque ? '#F1F5F9' : '#64748B';
     c.font = (i === opts.destaque ? 'bold ' : '') + '11px "Segoe UI", sans-serif';
     c.textAlign = 'center'; c.textBaseline = 'top';
@@ -735,7 +759,7 @@ function drawBars(cv, labels, series, opts = {}) {
 }
 
 function cardGraficoReceita(id) {
-  return `<div class="card"><div class="card-head"><h3>📈 Receita das mentorias — últimos 6 meses e próximos 6</h3>
+  return `<div class="card"><div class="card-head"><h3>📈 Receita das mentorias <span class="muted" style="font-weight:500;font-size:12px">· 6 meses atrás e 6 à frente</span></h3>
     <div class="legenda" style="margin:0"><span><span class="dot" style="background:#10B981"></span>Recebido</span><span><span class="dot" style="background:#6366F1"></span>A receber</span><span><span class="dot" style="background:#EF4444"></span>Em atraso</span></div></div>
     <div class="chart-wrap"><canvas id="${id}"></canvas></div></div>`;
 }
@@ -756,10 +780,35 @@ function desenharGraficoReceita(id) {
 // ============================================================
 // PÁGINA: AGENDA
 // ============================================================
+let agendaDia = hojeISO();
 function moverAgenda(n) {
-  if (n === 0) agendaMes = hojeISO().slice(0, 7);
+  if (n === 0) { agendaMes = hojeISO().slice(0, 7); agendaDia = hojeISO(); }
   else agendaMes = addMeses(agendaMes + '-01', n).slice(0, 7);
   renderTudo();
+}
+function selecionarDia(dia) {
+  agendaDia = dia;
+  if (dia.slice(0, 7) !== agendaMes) agendaMes = dia.slice(0, 7);
+  renderTudo();
+  const p = $('painel-dia');
+  if (p && window.innerWidth <= 768) p.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+function painelDia() {
+  const d = parseISO(agendaDia);
+  const l = DB.aulas.filter(a => a.data === agendaDia && aulaConta(a));
+  const rd = relDia(agendaDia);
+  const pags = DB.pagamentos.filter(p => !p.pagoEm && p.vencimento === agendaDia);
+  return `<div class="card painel-dia" id="painel-dia"><div class="card-head">
+      <div class="flex items-center gap-8">
+        <button class="btn btn-ghost btn-sm" onclick="selecionarDia(addDias(agendaDia,-1))" title="Dia anterior">‹</button>
+        <h3 style="font-size:16px">${rd ? rd + ' · ' + DIAS_SEM_LONGO[d.getDay()] : DIAS_SEM_LONGO[d.getDay()].replace(/^./, c => c.toUpperCase())}, ${d.getDate()} de ${MESES[d.getMonth()]}</h3>
+        <button class="btn btn-ghost btn-sm" onclick="selecionarDia(addDias(agendaDia,1))" title="Próximo dia">›</button>
+      </div>
+      <div class="flex items-center gap-8"><span class="muted text-sm">${plural(l.length, 'aula')}${l.length ? ' · ' + (soma(l, a => a.duracao) / 60).toFixed(1).replace('.', ',').replace(',0', '') + 'h' : ''}</span>
+        <button class="btn btn-primary btn-sm" onclick="novaAula({data:agendaDia})">+ Aula neste dia</button></div></div>
+    ${timelineDia(agendaDia)}
+    ${pags.length ? `<div class="card-label" style="margin-top:14px">💰 Vencimentos do dia</div>${pags.map(itemPagLista).join('')}` : ''}
+  </div>`;
 }
 function renderAgenda() {
   const [y, m] = agendaMes.split('-').map(Number);
@@ -786,9 +835,9 @@ function renderAgenda() {
     const dia = addDias(inicio, i);
     const cel = porDia[dia] || { aulas: [], pags: [] };
     const aulas = cel.aulas.slice().sort(porDataHora);
-    h += `<div class="cal-day ${dia.slice(0, 7) !== agendaMes ? 'outro' : ''} ${dia === hoje ? 'hoje' : ''}" onclick="novaAula({data:'${dia}'})">
-      <div class="cal-num"><span>${+dia.slice(8)}</span>${aulas.filter(aulaConta).length > 1 ? `<span class="muted" style="font-weight:600">${aulas.filter(aulaConta).length}</span>` : ''}</div>
-      ${aulas.map(a => { const cor = corAula(a); return `<div class="cal-ev ${aulaConta(a) ? '' : 'cancelada'}" style="border-left-color:${cor};background:${cor}22" onclick="event.stopPropagation();editarAula('${a.id}')" title="${esc(a.hora + ' · ' + nomesAula(a) + '\n' + a.tema + ' — ' + (STATUS_AULA[a.status] || {}).l)}">${a.status === 'realizada' ? '✓ ' : ''}${esc(a.hora)} ${esc(primeiroNome(nomesAula(a)))}${a.alunoIds.length > 1 ? ' +' + (a.alunoIds.length - 1) : ''}</div>`; }).join('')}
+    h += `<div class="cal-day ${dia.slice(0, 7) !== agendaMes ? 'outro' : ''} ${dia === hoje ? 'hoje' : ''} ${dia === agendaDia ? 'sel' : ''}" onclick="selecionarDia('${dia}')">
+      <div class="cal-num"><span>${+dia.slice(8)}</span>${aulas.filter(aulaConta).length > 1 ? `<span class="cal-qtd">${aulas.filter(aulaConta).length}</span>` : ''}</div>
+      ${aulas.map(a => { const cor = corAula(a); return `<div class="cal-ev ${aulaConta(a) ? '' : 'cancelada'}" style="--c:${cor};border-left-color:${cor};background:${cor}22" onclick="event.stopPropagation();editarAula('${a.id}')" title="${esc(a.hora + ' · ' + nomesAula(a) + '\n' + a.tema + ' — ' + (STATUS_AULA[a.status] || {}).l)}">${a.status === 'realizada' ? '✓ ' : ''}${esc(a.hora)} ${esc(primeiroNome(nomesAula(a)))}${a.alunoIds.length > 1 ? ' +' + (a.alunoIds.length - 1) : ''}</div>`; }).join('')}
       ${cel.pags.map(p => `<div class="cal-ev pag ${statusPag(p) === 'atrasado' ? 'atrasado' : ''}" onclick="event.stopPropagation();editarPagamento('${p.id}')" title="${esc(nomeAluno(p.alunoId) + ' — ' + (p.descricao || '') + ' ' + fmtBRL(p.valor))}">💰 ${esc(primeiroNome(nomeAluno(p.alunoId)))} ${fmtCurto(p.valor)}</div>`).join('')}
     </div>`;
   }
@@ -796,7 +845,7 @@ function renderAgenda() {
   const ativos = DB.alunos.filter(a => a.status === 'ativo');
   h += `<div class="legenda">${ativos.map(a => `<span><span class="dot" style="background:${corValida(a.cor)}"></span>${esc(a.nome)}</span>`).join('')}
     <span><span class="dot" style="background:${COR_GRUPO}"></span>Aula em grupo</span>${agendaPags ? `<span>💰 Vencimento em aberto</span>` : ''}</div>`;
-  $('page-agenda').innerHTML = h;
+  $('page-agenda').innerHTML = `<div class="agenda-layout"><div>${h}</div>${painelDia()}</div>`;
 }
 
 // ============================================================
@@ -833,9 +882,34 @@ function filtrarAulas() {
   return l;
 }
 function linhaAula(a, semAluno) {
-  const hoje = hojeISO(), pend = aulaPendenteConfirmacao(a), rd = relDia(a.data);
-  const futura = fimAula(a) >= new Date();
+  const hoje = hojeISO(), rd = relDia(a.data);
   const sub = a.tarefas ? '📋 ' + a.tarefas : (a.pauta || a.notas || '');
+  const acoes = acoesAula(a);
+  return `<tr class="clicavel ${a.data === hoje && a.status === 'agendada' ? 'linha-hoje' : ''} ${aulaConta(a) ? '' : 'linha-apagada'}" onclick="editarAula('${a.id}')">
+    <td class="td-mono">${fmtDataSemana(a.data)} ${rd ? badge(rd, rd === 'Hoje' ? 'orange' : 'gray') : ''}</td>
+    <td class="td-mono">${esc(a.hora)}–${horaFim(a.hora, a.duracao)}</td>
+    ${semAluno ? '' : `<td>${pessoasAula(a)}</td>`}
+    <td class="td-mono">${a.numero ? esc(a.numero) : '—'}</td>
+    <td class="td-tema"><div class="t1">${esc(a.tema)}</div>${sub ? `<div class="t2">${esc(sub)}</div>` : ''}</td>
+    <td>${badgeAula(a)}</td>
+    <td class="td-acoes" onclick="event.stopPropagation()">${acoes}</td></tr>`;
+}
+// Lista das aulas de um dia, em ordem de horário (painel da agenda e "Hoje" da visão geral)
+function timelineDia(dia) {
+  const l = DB.aulas.filter(a => a.data === dia).sort(porDataHora);
+  if (!l.length) return `<div class="empty-mini">Nenhuma aula neste dia.</div>`;
+  return l.map(a => {
+    const nomes = a.alunoIds.length > 1 ? 'Grupo: ' + a.alunoIds.map(nomeAluno).map(primeiroNome).join(', ') : nomeAluno(a.alunoIds[0]);
+    return `<div class="tl-item ${aulaConta(a) ? '' : 'apagada'}" onclick="editarAula('${a.id}')">
+      <div class="tl-hora"><b>${esc(a.hora)}</b><span>${horaFim(a.hora, a.duracao)}</span></div>
+      <div class="tl-barra" style="background:${corAula(a)}"></div>
+      <div class="tl-info"><div class="l1">${esc(nomes)}</div><div class="l2">${a.numero ? 'Aula ' + esc(a.numero) + ' · ' : ''}${esc(a.tema)}</div><div style="margin-top:4px">${badgeAula(a)}</div></div>
+      <div class="tl-acoes" onclick="event.stopPropagation()">${acoesAula(a)}</div></div>`;
+  }).join('');
+}
+function acoesAula(a) {
+  const hoje = hojeISO(), pend = aulaPendenteConfirmacao(a);
+  const futura = fimAula(a) >= new Date();
   let acoes = '';
   if (a.status === 'agendada' && (pend || a.data === hoje)) {
     acoes += `<button class="btn btn-success btn-xs" onclick="marcarAula('${a.id}','realizada')">✓ Realizada</button> <button class="btn btn-ghost btn-xs" onclick="marcarAula('${a.id}','falta')">Faltou</button> `;
@@ -845,14 +919,7 @@ function linhaAula(a, semAluno) {
     acoes += `<button class="btn btn-ghost btn-xs" onclick="lembreteAula('${a.id}')" title="Enviar lembrete no WhatsApp">💬</button> `;
   }
   if (a.gravacao) acoes += `<button class="btn btn-ghost btn-xs" onclick="abrirLinkAula('${a.id}','gravacao')" title="Abrir gravação">🎬</button> `;
-  return `<tr class="clicavel ${a.data === hoje && a.status === 'agendada' ? 'linha-hoje' : ''} ${aulaConta(a) ? '' : 'linha-apagada'}" onclick="editarAula('${a.id}')">
-    <td class="td-mono">${fmtDataSemana(a.data)} ${rd ? badge(rd, rd === 'Hoje' ? 'orange' : 'gray') : ''}</td>
-    <td class="td-mono">${esc(a.hora)}–${horaFim(a.hora, a.duracao)}</td>
-    ${semAluno ? '' : `<td>${pessoasAula(a)}</td>`}
-    <td class="td-mono">${a.numero ? esc(a.numero) : '—'}</td>
-    <td class="td-tema"><div class="t1">${esc(a.tema)}</div>${sub ? `<div class="t2">${esc(sub)}</div>` : ''}</td>
-    <td>${badgeAula(a)}</td>
-    <td class="td-acoes" onclick="event.stopPropagation()">${acoes}</td></tr>`;
+  return acoes;
 }
 function renderAulasTabela() {
   const l = filtrarAulas();
@@ -871,6 +938,7 @@ function marcarAula(id, status) {
   if (!a) return;
   a.status = status;
   if (status === 'realizada') a.alunoIds.forEach(al => { if (a.presencas[al] === undefined) a.presencas[al] = true; });
+  ajustarCobrancasAula(a);
   commit(status === 'realizada' ? 'Aula marcada como realizada ✓' : 'Status da aula atualizado');
 }
 function abrirLinkAula(id, campo) {
@@ -1001,11 +1069,11 @@ function cardResumoPorAluno() {
   const lista = DB.alunos.filter(a => pagsDoAluno(a.id).length || num(a.valor) > 0).sort((a, b) => finAluno(b.id).atrasado - finAluno(a.id).atrasado || a.nome.localeCompare(b.nome));
   if (!lista.length) return '';
   return `<div class="card" style="padding:6px"><div class="card-head" style="padding:12px 14px 0"><h3>👥 Situação por mentorado</h3></div><div class="table-wrap"><table>
-    <thead><tr><th>Mentorado</th><th>Contratado</th><th>Cobrado</th><th>Pago</th><th>Em aberto</th><th>Em atraso</th><th>Situação</th></tr></thead><tbody>
+    <thead><tr><th>Mentorado</th><th>Cobrança</th><th>Cobrado</th><th>Pago</th><th>Em aberto</th><th>Em atraso</th><th>Situação</th></tr></thead><tbody>
     ${lista.map(al => {
-      const f = finAluno(al.id), falta = num(al.valor) - f.cobrado;
+      const f = finAluno(al.id), falta = pacote(al) ? num(al.valor) - f.cobrado : 0;
       return `<tr class="clicavel" onclick="abrirDetalhe('${al.id}','pagamentos')"><td>${pessoaHTML(al)}</td>
-        <td class="td-mono">${al.valor ? fmtBRL(al.valor) : '—'}${falta > 0.005 ? `<div style="font-size:11px" class="neg" title="Parte do valor contratado ainda não tem parcela lançada">${fmtBRL(falta)} sem parcela</div>` : ''}</td>
+        <td class="td-mono">${esc(textoModo(al))}${falta > 0.005 ? `<div style="font-size:11px" class="neg" title="Parte do valor contratado ainda não tem parcela lançada">${fmtBRL(falta)} sem parcela</div>` : ''}</td>
         <td class="td-mono">${fmtBRL(f.cobrado)}</td><td class="td-mono pos">${fmtBRL(f.pago)}</td><td class="td-mono">${fmtBRL(f.aberto)}</td>
         <td class="td-mono ${f.atrasado ? 'neg' : 'muted'}">${fmtBRL(f.atrasado)}</td><td>${badgeFin(al.id)}</td></tr>`;
     }).join('')}</tbody></table></div></div>`;
@@ -1184,6 +1252,16 @@ function preencherSelectsAluno(sel) {
   $('al-plataforma').innerHTML = '<option value="">—</option>' + optionsLista(PLATAFORMAS, sel.plataforma);
   $('al-status').innerHTML = options(STATUS_ALUNO, sel.status);
   $('al-programa').innerHTML = '<option value="">— Sem programa —</option>' + DB.programas.map(p => `<option value="${p.id}" ${p.id === sel.programaId ? 'selected' : ''}>${esc(p.nome)}</option>`).join('');
+  $('al-modo').innerHTML = options(MODOS, sel.modoCobranca || 'mensal');
+  $('al-valorunit').value = sel.valorUnit ?? '';
+  atualizarModoAluno();
+}
+function atualizarModoAluno() {
+  const m = $('al-modo').value;
+  const unit = m === 'semanal' || m === 'aula';
+  $('al-valorunit-wrap').style.display = unit ? '' : 'none';
+  $('al-valor-wrap').style.display = unit ? 'none' : '';
+  $('al-valorunit-label').textContent = m === 'semanal' ? 'Valor por semana (R$)' : 'Valor por aula (R$)';
 }
 function novoAluno() {
   editAlunoId = null;
@@ -1232,11 +1310,17 @@ function salvarAluno() {
     cidade: $('al-cidade').value.trim(), loja: $('al-loja').value.trim(), plataforma: $('al-plataforma').value, nicho: $('al-nicho').value.trim(),
     site: $('al-site').value.trim(), faturamentoInicial: $('al-fat').value === '' ? '' : num($('al-fat').value),
     objetivo: $('al-objetivo').value.trim(), programaId: $('al-programa').value, inicio: $('al-inicio').value, fim: $('al-fim').value,
-    status: $('al-status').value, valor: $('al-valor').value === '' ? '' : num($('al-valor').value), cor: corValida($('al-cor').value), obs: $('al-obs').value.trim()
+    status: $('al-status').value, valor: $('al-valor').value === '' ? '' : num($('al-valor').value), cor: corValida($('al-cor').value), obs: $('al-obs').value.trim(),
+    modoCobranca: $('al-modo').value, valorUnit: $('al-valorunit').value === '' ? '' : num($('al-valorunit').value)
   };
+  if (dados.modoCobranca === 'semanal' || dados.modoCobranca === 'aula') dados.valor = '';
   if (editAlunoId) {
-    if (sumiu(getAluno(editAlunoId), 'modal-aluno')) return;
-    Object.assign(getAluno(editAlunoId), dados);
+    const alvo = getAluno(editAlunoId);
+    if (sumiu(alvo, 'modal-aluno')) return;
+    const virouPorAula = dados.modoCobranca === 'aula' && alvo.modoCobranca !== 'aula';
+    Object.assign(alvo, dados);
+    // passou a cobrar por aula: as próximas aulas agendadas já ganham cobrança
+    if (virouPorAula && num(dados.valorUnit)) aulasDoAluno(alvo.id).filter(a => a.status === 'agendada' && fimAula(a) >= new Date()).forEach(a => ajustarCobrancasAula(a));
     fecharModal('modal-aluno');
     commit('Mentorado atualizado');
     return;
@@ -1307,10 +1391,14 @@ function confirmarGerarAulas() {
   const n0 = num($('ga-numero').value) || 1;
   const dur = num($('ga-duracao').value) || 60;
   const link = $('ga-link').value.trim();
-  temas.forEach((t, i) => DB.aulas.push({
-    id: uid(), alunoIds: [gerarAlunoId], data: ds[i], hora, duracao: dur, numero: n0 + i, tema: t,
-    status: 'agendada', link, gravacao: '', pauta: '', tarefas: '', notas: '', presencas: {}
-  }));
+  temas.forEach((t, i) => {
+    const a = {
+      id: uid(), alunoIds: [gerarAlunoId], data: ds[i], hora, duracao: dur, numero: n0 + i, tema: t,
+      status: 'agendada', link, gravacao: '', pauta: '', tarefas: '', notas: '', presencas: {}
+    };
+    DB.aulas.push(a);
+    ajustarCobrancasAula(a);
+  });
   fecharModal('modal-gerar-aulas');
   commit(`${plural(temas.length, 'aula criada', 'aulas criadas')} ✓`);
   if (wizard) abrirGerarParcelas(wizard.alunoId);
@@ -1326,9 +1414,8 @@ function abrirGerarParcelas(id) {
   gerarAlunoId = id;
   const pr = getPrograma(al.programaId);
   const f = finAluno(id);
-  const restante = Math.max(0, num(al.valor || (pr && pr.valor)) - f.cobrado);
   $('gp-aluno-nome').value = al.nome;
-  $('gp-total').value = restante ? Math.round(restante * 100) / 100 : '';
+  $('gp-modo').innerHTML = options(MODOS, al.modoCobranca || 'mensal');
   $('gp-n').value = (pr && pr.parcelas) || 1;
   $('gp-venc').value = f.qtd ? addMeses(pagsDoAluno(id).map(p => p.vencimento).sort().pop(), 1) : (al.inicio || hojeISO());
   $('gp-forma').innerHTML = optionsLista(FORMAS, 'Pix');
@@ -1336,8 +1423,34 @@ function abrirGerarParcelas(id) {
   $('gp-entrada').checked = false;
   $('gp-passo').textContent = wizard ? 'Passo 3 de 3' : '';
   $('gp-pular').textContent = wizard ? 'Pular esta etapa' : 'Cancelar';
-  previewGerarParcelas();
+  trocarModoParcelas();
   abrirModal('modal-gerar-parc');
+}
+// Ajusta os campos da janela conforme a forma de cobrança escolhida
+function trocarModoParcelas() {
+  const modo = $('gp-modo').value, al = getAluno(gerarAlunoId);
+  if (!al) return;
+  const pr = getPrograma(al.programaId);
+  const restante = Math.max(0, num(al.valor || (pr && pr.valor)) - finAluno(al.id).cobrado);
+  const cfg = {
+    mensal:  { total: 'Valor total (R$) *', n: 'Nº de parcelas *', venc: '1º vencimento *', entrada: 'A 1ª parcela já foi paga (entrada)', valor: restante },
+    avista:  { total: 'Valor total (R$) *', n: null, venc: 'Vencimento *', entrada: 'Já foi pago', valor: restante },
+    semanal: { total: 'Valor por semana (R$) *', n: 'Nº de semanas *', venc: '1º vencimento *', entrada: 'A 1ª semana já foi paga', valor: num(al.valorUnit) },
+    aula:    { total: 'Valor por aula (R$) *', n: null, venc: null, entrada: null, valor: num(al.valorUnit) }
+  }[modo];
+  $('gp-total-label').textContent = cfg.total;
+  $('gp-total').value = cfg.valor ? Math.round(cfg.valor * 100) / 100 : '';
+  $('gp-n-wrap').style.display = cfg.n ? '' : 'none';
+  if (cfg.n) $('gp-n-label').textContent = cfg.n;
+  if (modo === 'semanal') $('gp-n').value = Math.max(1, aulasDoAluno(al.id).filter(a => aulaConta(a) && a.status === 'agendada').length) || 4;
+  $('gp-venc-wrap').style.display = cfg.venc ? '' : 'none';
+  if (cfg.venc) $('gp-venc-label').textContent = cfg.venc;
+  $('gp-desc-wrap').style.display = modo === 'aula' ? 'none' : '';
+  $('gp-entrada-wrap').style.display = cfg.entrada ? '' : 'none';
+  if (cfg.entrada) $('gp-entrada-label').textContent = cfg.entrada;
+  $('gp-hint').style.display = modo === 'aula' ? '' : 'none';
+  $('gp-hint').innerHTML = `<span>💡</span><div class="grow">Cria uma cobrança para cada aula desse aluno que ainda não tem cobrança, vencendo no dia da aula. <b>Daqui pra frente, toda aula nova dele gera a cobrança sozinha</b> — e se a aula for cancelada ou remarcada, a cobrança em aberto sai junto.</div>`;
+  previewGerarParcelas();
 }
 function calcParcelas(total, n, venc, desc) {
   const centavos = Math.round(total * 100);
@@ -1349,22 +1462,66 @@ function calcParcelas(total, n, venc, desc) {
   }
   return out;
 }
+// Monta a lista de cobranças conforme a forma escolhida (null = faltam dados)
+function calcCobrancas() {
+  const modo = $('gp-modo').value, valor = num($('gp-total').value);
+  const n = Math.floor(num($('gp-n').value)), venc = $('gp-venc').value, desc = $('gp-desc').value.trim() || 'Mentoria';
+  if (!valor) return null;
+  if (modo === 'aula') return aulasSemCobranca(gerarAlunoId).map(a => cobrancaDaAula(a, gerarAlunoId, valor));
+  if (!venc) return null;
+  if (modo === 'avista') return [{ valor, vencimento: venc, descricao: desc + ' — à vista' }];
+  if (n < 1) return null;
+  if (modo === 'semanal') return Array.from({ length: n }, (_, i) => ({ valor, vencimento: addDias(venc, 7 * i), descricao: `${desc} — semana ${i + 1}/${n}` }));
+  return calcParcelas(valor, n, venc, desc);
+}
 function previewGerarParcelas() {
-  const total = num($('gp-total').value), n = Math.floor(num($('gp-n').value)), venc = $('gp-venc').value;
-  if (!total || n < 1 || !venc) { $('gp-preview').innerHTML = '<span class="muted">Informe valor, número de parcelas e 1º vencimento.</span>'; return; }
-  $('gp-preview').innerHTML = calcParcelas(total, n, venc, $('gp-desc').value.trim() || 'Mentoria').map(p => `<div>${fmtData(p.vencimento)} — <b>${fmtBRL(p.valor)}</b> · ${esc(p.descricao)}</div>`).join('');
+  const l = calcCobrancas();
+  if (!l) { $('gp-preview').innerHTML = '<span class="muted">Preencha os campos com * para ver as cobranças.</span>'; return; }
+  if (!l.length) { $('gp-preview').innerHTML = '<span class="muted">Todas as aulas desse aluno já têm cobrança. As próximas aulas que você criar vão gerar a cobrança sozinhas.</span>'; return; }
+  $('gp-preview').innerHTML = `<div style="margin-bottom:6px;color:var(--text)"><b>${plural(l.length, 'cobrança')}</b> · total ${fmtBRL(soma(l, p => p.valor))}</div>` +
+    l.map(p => `<div>${fmtData(p.vencimento)} — <b>${fmtBRL(p.valor)}</b> · ${esc(p.descricao)}</div>`).join('');
 }
 function confirmarGerarParcelas() {
-  const total = num($('gp-total').value), n = Math.floor(num($('gp-n').value)), venc = $('gp-venc').value;
-  if (!total || n < 1 || !venc) { toast('Informe valor, número de parcelas e 1º vencimento', 'error'); return; }
-  if (n > 60) { toast('Máximo de 60 parcelas', 'error'); return; }
-  const forma = $('gp-forma').value;
-  calcParcelas(total, n, venc, $('gp-desc').value.trim() || 'Mentoria').forEach((p, i) => DB.pagamentos.push({
-    id: uid(), alunoId: gerarAlunoId, ...p, forma, obs: '', pagoEm: (i === 0 && $('gp-entrada').checked) ? hojeISO() : ''
-  }));
+  const modo = $('gp-modo').value;
+  const l = calcCobrancas();
+  if (!l) { toast('Preencha os campos obrigatórios (*)', 'error'); return; }
+  if (l.length > 60) { toast('Máximo de 60 cobranças de uma vez', 'error'); return; }
+  const al = getAluno(gerarAlunoId);
+  if (sumiu(al, 'modal-gerar-parc')) return;
+  // guarda a forma de cobrança no cadastro do aluno
+  const cobradoAntes = finAluno(al.id).cobrado;
+  al.modoCobranca = modo;
+  if (modo === 'semanal' || modo === 'aula') al.valorUnit = num($('gp-total').value);
+  // o valor do pacote passa a ser o que foi de fato cobrado (evita "sem parcela" falso)
+  if (modo === 'avista' || modo === 'mensal') al.valor = Math.round((cobradoAntes + soma(l, p => p.valor)) * 100) / 100;
+  const forma = $('gp-forma').value, entrada = modo !== 'aula' && $('gp-entrada').checked;
+  l.forEach((p, i) => DB.pagamentos.push({ id: uid(), alunoId: gerarAlunoId, ...p, forma, obs: '', pagoEm: (i === 0 && entrada) ? hojeISO() : '' }));
   fecharModal('modal-gerar-parc');
-  commit(`${plural(n, 'parcela gerada', 'parcelas geradas')} ✓`);
+  commit(l.length ? `${plural(l.length, 'cobrança gerada', 'cobranças geradas')} ✓` : 'Forma de cobrança salva ✓');
   finalizarWizard();
+}
+
+// ── Cobrança por aula ──────────────────────────────────────────
+function cobrancaDaAula(a, alunoId, valor) {
+  return { valor, vencimento: a.data, descricao: `Aula ${a.numero ? a.numero + ' ' : ''}— ${a.tema}`, aulaId: a.id };
+}
+function aulasSemCobranca(alunoId) {
+  return aulasDoAluno(alunoId).filter(a => aulaConta(a) && !DB.pagamentos.some(p => p.aulaId === a.id && p.alunoId === alunoId)).sort(porDataHora);
+}
+// Mantém as cobranças "por aula" coerentes com a aula: cria a que falta, acompanha a data
+// e remove a que está em aberto se a aula for cancelada/remarcada/excluída ou o aluno sair dela
+function ajustarCobrancasAula(a, excluida) {
+  DB.pagamentos = DB.pagamentos.filter(p => !(p.aulaId === a.id && !p.pagoEm && (excluida || !aulaConta(a) || !a.alunoIds.includes(p.alunoId))));
+  if (excluida) return;
+  DB.pagamentos.forEach(p => { if (p.aulaId === a.id && !p.pagoEm) p.vencimento = a.data; });
+  if (!aulaConta(a)) return;
+  a.alunoIds.forEach(id => {
+    const al = getAluno(id);
+    if (!al || al.modoCobranca !== 'aula' || !num(al.valorUnit)) return;
+    if (DB.pagamentos.some(p => p.aulaId === a.id && p.alunoId === id)) return;
+    const ultima = pagsDoAluno(id).slice(-1)[0];
+    DB.pagamentos.push({ id: uid(), alunoId: id, ...cobrancaDaAula(a, id, num(al.valorUnit)), forma: (ultima && ultima.forma) || 'Pix', obs: '', pagoEm: '' });
+  });
 }
 function pularGerarParcelas() {
   fecharModal('modal-gerar-parc');
@@ -1501,12 +1658,19 @@ function salvarAula() {
     const alvo = DB.aulas.find(x => x.id === editAulaId);
     if (sumiu(alvo, 'modal-aula')) return;
     Object.assign(alvo, d);
-  } else DB.aulas.push({ id: uid(), ...d });
+    ajustarCobrancasAula(alvo);
+  } else {
+    const nova = { id: uid(), ...d };
+    DB.aulas.push(nova);
+    ajustarCobrancasAula(nova);
+  }
   fecharModal('modal-aula');
   commit(editAulaId ? 'Aula atualizada' : 'Aula agendada ✓');
 }
 function excluirAula() {
   if (!editAulaId || !confirm('Excluir esta aula?\n\nSe ela só mudou de data, prefira alterar a data ou marcar como "Remarcada".')) return;
+  const alvo = DB.aulas.find(x => x.id === editAulaId);
+  if (alvo) ajustarCobrancasAula(alvo, true);
   DB.aulas = DB.aulas.filter(x => x.id !== editAulaId);
   fecharModal('modal-aula');
   commit('Aula excluída');
@@ -1677,7 +1841,7 @@ function detResumo(al, prog) {
     ['Site', al.site ? `<a class="link" onclick="abrirURL(${esc(JSON.stringify(al.site))})">${esc(al.site)}</a>` : '', true],
     ['Faturamento inicial', al.faturamentoInicial !== '' && al.faturamentoInicial != null ? fmtBRL(al.faturamentoInicial) + '/mês' : ''],
     ['Programa', prog ? prog.nome : ''], ['Início', fmtData(al.inicio)], ['Término previsto', al.fim ? fmtData(al.fim) : ''],
-    ['Valor contratado', al.valor ? fmtBRL(al.valor) : ''], ['Cliente desde', al.criadoEm ? new Date(al.criadoEm).toLocaleDateString('pt-BR') : '']
+    ['Cobrança', textoModo(al)], ['Cliente desde', al.criadoEm ? new Date(al.criadoEm).toLocaleDateString('pt-BR') : '']
   ];
   return `<div class="cards-grid grid-4 mb-16">
       <div class="card card-sm"><div class="card-label">Aulas</div><div class="card-value">${pr.feitas}<span class="muted" style="font-size:15px">/${pr.total}</span></div><div style="margin-top:8px">${barraProgresso(pr.feitas, pr.total, corValida(al.cor))}</div></div>
@@ -1687,7 +1851,7 @@ function detResumo(al, prog) {
     </div>
     ${!pr.total || !f.qtd ? `<div class="alerta alerta-warn"><span>💡</span><div class="grow">${!pr.total ? 'Este mentorado ainda não tem aulas.' : ''} ${!f.qtd ? 'Nenhuma cobrança lançada.' : ''}</div>
       ${!pr.total ? `<button class="btn btn-ghost btn-sm" onclick="abrirGerarAulas('${al.id}')">Gerar cronograma</button>` : ''}
-      ${!f.qtd ? `<button class="btn btn-ghost btn-sm" onclick="abrirGerarParcelas('${al.id}')">Gerar parcelas</button>` : ''}</div>` : ''}
+      ${!f.qtd ? `<button class="btn btn-ghost btn-sm" onclick="abrirGerarParcelas('${al.id}')">Gerar cobranças</button>` : ''}</div>` : ''}
     <div class="card mb-16"><div class="info-grid">${info.map(([k, v, html]) => `<div><div class="k">${k}</div><div class="v">${v ? (html ? v : esc(v)) : '<span class="muted">—</span>'}</div></div>`).join('')}</div></div>
     ${al.objetivo ? `<div class="mb-16"><div class="section-title card-label">🎯 Objetivo da mentoria</div><div class="bloco-texto">${esc(al.objetivo)}</div></div>` : ''}
     ${ultTarefa ? `<div class="mb-16"><div class="card-label">📋 Última tarefa passada (aula ${esc(ultTarefa.numero || '')} · ${fmtData(ultTarefa.data)})</div><div class="bloco-texto">${esc(ultTarefa.tarefas)}</div></div>` : ''}
@@ -1704,14 +1868,15 @@ function detAulas(al) {
 function detPagamentos(al) {
   const l = pagsDoAluno(al.id).sort((a, b) => a.vencimento.localeCompare(b.vencimento));
   const f = finAluno(al.id);
-  const falta = num(al.valor) - f.cobrado;
+  const falta = pacote(al) ? num(al.valor) - f.cobrado : 0;
   let h = `<div class="cards-grid grid-4 mb-16">
-    <div class="card card-sm"><div class="card-label">Contratado</div><div class="card-value" style="font-size:18px">${al.valor ? fmtBRL(al.valor) : '—'}</div></div>
+    <div class="card card-sm"><div class="card-label">Forma de cobrança</div><div class="card-value" style="font-size:16px">${esc(textoModo(al))}</div>
+      <div class="card-sub"><a class="link" onclick="abrirGerarParcelas('${al.id}')">alterar / gerar cobranças</a></div></div>
     <div class="card card-sm"><div class="card-label">Pago</div><div class="card-value pos" style="font-size:18px">${fmtBRL(f.pago)}</div></div>
     <div class="card card-sm"><div class="card-label">Em aberto</div><div class="card-value" style="font-size:18px">${fmtBRL(f.aberto)}</div></div>
     <div class="card card-sm"><div class="card-label">Em atraso</div><div class="card-value ${f.atrasado ? 'neg' : ''}" style="font-size:18px">${fmtBRL(f.atrasado)}</div></div></div>
     ${falta > 0.005 ? `<div class="alerta alerta-warn"><span>💡</span><div class="grow">${fmtBRL(falta)} do valor contratado ainda não tem parcela lançada.</div><button class="btn btn-ghost btn-sm" onclick="abrirGerarParcelas('${al.id}')">Gerar parcelas</button></div>` : ''}
-    <div class="flex gap-8 mb-16"><button class="btn btn-primary btn-sm" onclick="novaCobranca({alunoId:'${al.id}'})">+ Cobrança</button><button class="btn btn-ghost btn-sm" onclick="abrirGerarParcelas('${al.id}')">⚡ Gerar parcelas</button></div>`;
+    <div class="flex gap-8 mb-16"><button class="btn btn-primary btn-sm" onclick="novaCobranca({alunoId:'${al.id}'})">+ Cobrança avulsa</button><button class="btn btn-ghost btn-sm" onclick="abrirGerarParcelas('${al.id}')">⚡ Gerar cobranças</button></div>`;
   if (!l.length) return h + `<div class="empty-mini">Nenhuma cobrança ainda.</div>`;
   return h + `<div class="table-wrap"><table><thead><tr><th>Vencimento</th><th>Descrição</th><th>Valor</th><th>Forma</th><th>Situação</th><th></th></tr></thead><tbody>${l.map(p => linhaPag(p, true)).join('')}</tbody></table></div>`;
 }

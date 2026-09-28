@@ -1,5 +1,5 @@
 // Incrementar a versão para forçar atualização no iPhone
-const CACHE = 'mentorias-v1';
+const CACHE = 'mentorias-v2';
 const ASSETS = ['./', 'index.html', 'app.js', 'manifest.json', 'assets/icon-192.png', 'assets/icon-180.png'];
 
 self.addEventListener('install', e => {

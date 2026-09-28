@@ -208,6 +208,25 @@ tr.linha-apagada td { opacity: 0.55; }
 .cal-ev.cancelada { text-decoration: line-through; opacity: 0.5; }
 .cal-ev.pag { border-left-color: var(--success); background: rgba(16,185,129,0.1); color: #6EE7B7; }
 .cal-ev.pag.atrasado { border-left-color: var(--danger); background: rgba(239,68,68,0.12); color: #FCA5A5; }
+.cal-day.sel { background: #26335a; box-shadow: inset 0 0 0 2px var(--accent); }
+.cal-day.hoje.sel { box-shadow: inset 0 0 0 2px var(--orange); }
+.cal-qtd { background: var(--accent); color: #fff; border-radius: 8px; padding: 0 6px; font-size: 10px; line-height: 16px; }
+.agenda-layout { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 16px; align-items: start; }
+.painel-dia { position: sticky; top: 0; }
+@media (max-width: 1250px) { .agenda-layout { grid-template-columns: minmax(0, 1fr); } .painel-dia { position: static; } }
+/* LINHA DO TEMPO DO DIA */
+.tl-item { display: flex; align-items: stretch; gap: 10px; padding: 10px 6px; border-bottom: 1px solid rgba(51,65,85,0.5); cursor: pointer; border-radius: 8px; }
+.tl-item:last-child { border-bottom: none; }
+.tl-item:hover { background: rgba(255,255,255,0.025); }
+.tl-item.apagada { opacity: 0.45; }
+.tl-hora { width: 46px; flex-shrink: 0; display: flex; flex-direction: column; font-variant-numeric: tabular-nums; }
+.tl-hora b { font-size: 14px; }
+.tl-hora span { font-size: 11px; color: var(--text3); }
+.tl-barra { width: 4px; border-radius: 4px; flex-shrink: 0; }
+.tl-info { flex: 1; min-width: 0; }
+.tl-info .l1 { font-weight: 700; }
+.tl-info .l2 { font-size: 12.5px; color: var(--text2); margin-top: 2px; }
+.tl-acoes { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; justify-content: flex-end; max-width: 45%; }
 .cal-mais { font-size: 10.5px; color: var(--text3); margin-top: 3px; padding-left: 4px; }
 .legenda { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--text2); margin-top: 12px; }
 .legenda span { display: inline-flex; align-items: center; gap: 6px; }
@@ -355,9 +374,18 @@ tr.linha-apagada td { opacity: 0.55; }
 
   /* agenda */
   .cal-toolbar h3 { font-size: 16px; min-width: 0; }
-  .cal-day { min-height: 64px; padding: 3px; }
+  .cal-day { min-height: 58px; padding: 3px; }
   .cal-num { font-size: 11px; }
-  .cal-ev { font-size: 9.5px; padding: 1px 3px; border-left-width: 2px; }
+  /* no celular cada aula vira uma barrinha colorida; o detalhe fica no painel do dia */
+  .cal-ev { font-size: 0; height: 5px; padding: 0; margin-top: 3px; border: none; border-radius: 3px; background: var(--c, var(--accent)) !important; pointer-events: none; }
+  .cal-ev.pag { background: var(--success) !important; }
+  .cal-ev.pag.atrasado { background: var(--danger) !important; }
+  .cal-ev.cancelada { opacity: 0.3; }
+  .cal-toolbar .muted { display: none; }
+  .tl-acoes { max-width: none; width: 100%; justify-content: flex-start; margin-top: 6px; }
+  .tl-item { flex-wrap: wrap; }
+  .tl-info { width: calc(100% - 70px); flex: none; }
+  .painel-dia .card-head h3 { font-size: 14px !important; }
   .cal-head { padding: 6px 2px; font-size: 10px; }
 
   /* modais em tela cheia */
@@ -475,8 +503,12 @@ tr.linha-apagada td { opacity: 0.55; }
       </div>
       <div class="form-row col3">
         <div class="form-group"><label>Status</label><select id="al-status"></select></div>
-        <div class="form-group"><label>Valor contratado (R$)</label><input id="al-valor" type="number" step="0.01" min="0"></div>
         <div class="form-group"><label>Cor na agenda</label><input id="al-cor" type="color"></div>
+      </div>
+      <div class="form-row col3">
+        <div class="form-group"><label>Forma de cobrança</label><select id="al-modo" onchange="atualizarModoAluno()"></select></div>
+        <div class="form-group" id="al-valor-wrap"><label>Valor total contratado (R$)</label><input id="al-valor" type="number" step="0.01" min="0"></div>
+        <div class="form-group" id="al-valorunit-wrap"><label id="al-valorunit-label">Valor por aula (R$)</label><input id="al-valorunit" type="number" step="0.01" min="0"></div>
       </div>
       <div class="form-group"><label>Observações</label><textarea id="al-obs"></textarea></div>
       <div class="form-group" id="al-wizard-wrap">
@@ -639,27 +671,29 @@ tr.linha-apagada td { opacity: 0.55; }
 <div class="overlay" id="modal-gerar-parc">
   <div class="modal">
     <div class="modal-header">
-      <div><div class="passo" id="gp-passo"></div><h3>Gerar parcelas de pagamento</h3></div>
+      <div><div class="passo" id="gp-passo"></div><h3>Gerar cobranças</h3></div>
       <button class="modal-close" onclick="pularGerarParcelas()">×</button>
     </div>
     <div class="modal-body">
       <div class="form-group"><label>Mentorado</label><input id="gp-aluno-nome" disabled></div>
+      <div class="form-group"><label>Como esse aluno paga?</label><select id="gp-modo" onchange="trocarModoParcelas()"></select></div>
       <div class="form-row col2">
-        <div class="form-group"><label>Valor total (R$) *</label><input id="gp-total" type="number" step="0.01" min="0" oninput="previewGerarParcelas()"></div>
-        <div class="form-group"><label>Nº de parcelas *</label><input id="gp-n" type="number" min="1" max="60" oninput="previewGerarParcelas()"></div>
+        <div class="form-group"><label id="gp-total-label">Valor total (R$) *</label><input id="gp-total" type="number" step="0.01" min="0" oninput="previewGerarParcelas()"></div>
+        <div class="form-group" id="gp-n-wrap"><label id="gp-n-label">Nº de parcelas *</label><input id="gp-n" type="number" min="1" max="60" oninput="previewGerarParcelas()"></div>
       </div>
       <div class="form-row col2">
-        <div class="form-group"><label>1º vencimento *</label><input id="gp-venc" type="date" oninput="previewGerarParcelas()"></div>
+        <div class="form-group" id="gp-venc-wrap"><label id="gp-venc-label">1º vencimento *</label><input id="gp-venc" type="date" oninput="previewGerarParcelas()"></div>
         <div class="form-group"><label>Forma de pagamento</label><select id="gp-forma"></select></div>
       </div>
-      <div class="form-group"><label>Descrição base</label><input id="gp-desc" placeholder="Mentoria" oninput="previewGerarParcelas()"></div>
-      <div class="form-group"><label class="check-line"><input type="checkbox" id="gp-entrada"> A 1ª parcela já foi paga (entrada)</label></div>
+      <div class="form-group" id="gp-desc-wrap"><label>Descrição base</label><input id="gp-desc" placeholder="Mentoria" oninput="previewGerarParcelas()"></div>
+      <div class="form-group" id="gp-entrada-wrap"><label class="check-line"><input type="checkbox" id="gp-entrada"> <span id="gp-entrada-label">A 1ª parcela já foi paga (entrada)</span></label></div>
+      <div class="alerta alerta-warn" id="gp-hint" style="display:none"></div>
       <label>Prévia</label>
       <div class="preview-box" id="gp-preview"></div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="pularGerarParcelas()" id="gp-pular">Pular</button>
-      <button class="btn btn-primary" onclick="confirmarGerarParcelas()">Gerar parcelas</button>
+      <button class="btn btn-primary" onclick="confirmarGerarParcelas()">Gerar cobranças</button>
     </div>
   </div>
 </div>
