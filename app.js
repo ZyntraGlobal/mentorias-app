@@ -304,14 +304,23 @@ let _sincronizando = false, _syncPendente = false, _syncTimer = null, _renderPen
 
 async function carregarToken() {
   try {
-    if (window.api) { const s = await window.api.lerSync(); SYNC.token = (s && s.token) || ''; }
+    if (window.api) {
+      const s = await window.api.lerSync();
+      SYNC.token = (s && s.token) || '';
+      if (s && s.erro) logSync('token não lido: ' + s.erro);
+    }
     else SYNC.token = localStorage.getItem('mentorias-token') || '';
   } catch (e) { SYNC.token = ''; logSync('ERRO ao ler token: ' + e.message); }
   logSync('app aberto · sincronização ' + (SYNC.token ? 'ligada' : 'DESLIGADA (sem token)'));
 }
+let sessaoDesk = {};
+async function gravarSessaoDesk(mudancas) {
+  sessaoDesk = { ...sessaoDesk, ...mudancas };
+  if (window.api && window.api.gravarSessao) await window.api.gravarSessao(sessaoDesk);
+}
 async function guardarToken(token) {
   SYNC.token = token || '';
-  if (window.api) await window.api.gravarSync(token ? { token } : null);
+  if (window.api) { await window.api.gravarSync(token ? { token } : null); await gravarSessaoDesk({ syncAtivo: !!token }); }
   else if (token) localStorage.setItem('mentorias-token', token);
   else localStorage.removeItem('mentorias-token');
 }
@@ -1378,7 +1387,12 @@ async function sair() {
       if (SYNC.estado === 'erro' && !confirm('Não foi possível sincronizar agora (' + SYNC.erro + ').\n\nSair mesmo assim? O que foi lançado ' + (window.api ? 'fica salvo neste computador e sincroniza quando abrir de novo.' : 'neste iPhone desde a última sincronização será perdido.'))) return;
     }
   } catch (e) {}
-  if (window.api) { window.close(); return; }
+  if (window.api) {
+    // da próxima vez que abrir, pede usuário e senha (só faz sentido com a sincronização configurada)
+    if (SYNC.token) await gravarSessaoDesk({ precisaLogin: true });
+    window.close();
+    return;
+  }
   await guardarToken('');
   localStorage.removeItem('mentorias-db');
   location.reload();
@@ -1386,6 +1400,7 @@ async function sair() {
 async function desconectarSync() {
   if (!confirm(window.api ? 'Desligar a sincronização neste computador?\n\nOs dados continuam aqui e no iPhone; só param de se atualizar entre si.' : 'Sair deste aparelho?\n\nVocê vai precisar da senha para entrar de novo.')) return;
   await guardarToken('');
+  if (window.api) await gravarSessaoDesk({ desligadoManual: true, precisaLogin: false });
   SYNC.estado = 'off';
   if (!window.api) localStorage.removeItem('mentorias-db');
   if (EM_PAGES) { location.reload(); return; }
@@ -2572,11 +2587,20 @@ async function fazerLogin(ev) {
   $('login-erro').textContent = '';
   try {
     if (window.api) {
-      if (!(await conferirSenhaDesktop(u, s))) throw new Error('Usuário ou senha incorretos');
+      // online: confere no acesso publicado e já grava o token de novo (religa a sincronização)
+      try { await entrarComSenha(u, s); }
+      catch (e) {
+        if (/incorretos|não foi configurado/.test(e.message)) throw e;
+        // sem internet: confere pela cópia de verificação guardada neste computador
+        if (!(await conferirSenhaDesktop(u, s))) throw new Error('Usuário ou senha incorretos');
+      }
       try { localStorage.setItem('mentorias-usuario', u); } catch (e) {}
+      await gravarSessaoDesk({ precisaLogin: false, desligadoManual: false });
+      logSync('login feito · sincronização ' + (SYNC.token ? 'ligada' : 'DESLIGADA'));
       _bloqueado = false;
       $('login-screen').style.display = 'none';
       marcarAtividade(true);
+      renderTudo();
       sincronizar();
       return;
     }
@@ -2606,9 +2630,20 @@ async function init() {
   if (EM_PAGES && SYNC.token && sessaoExpirada()) { await guardarToken(''); expirou = true; }
   if (EM_PAGES && !SYNC.token) { mostrarLogin(expirou ? 'Sessão expirada · digite a senha' : ''); return; }
   $('login-screen').style.display = 'none';
-  const travar = window.api && SYNC.token && sessaoExpirada();
+  // Computador: pede login se saiu pelo botão Sair, se a sessão expirou,
+  // ou se a sincronização foi configurada mas o token não pôde ser lido (o login recupera)
+  let motivoLogin = '';
+  if (window.api) {
+    try { sessaoDesk = (await window.api.lerSessao()) || {}; } catch (e) { sessaoDesk = {}; }
+    if (sessaoDesk.precisaLogin) motivoLogin = 'Acesso restrito';
+    else if (SYNC.token && sessaoExpirada()) motivoLogin = 'Sessão expirada · digite a senha';
+    else if (!SYNC.token && !sessaoDesk.desligadoManual) {
+      try { if (await buscarAcesso()) motivoLogin = 'Entre para ligar a sincronização'; } catch (e) {}
+    }
+  }
   await iniciarApp();
-  if (travar) bloquear(); else marcarAtividade(true);
+  if (motivoLogin) { _bloqueado = true; mostrarLogin(motivoLogin); logSync('pedindo login: ' + motivoLogin); }
+  else marcarAtividade(true);
 }
 
 async function iniciarApp() {
