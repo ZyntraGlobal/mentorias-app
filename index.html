@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Mentorias E-commerce</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" href="assets/icon-192.png">
+<link rel="apple-touch-icon" href="assets/icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Mentorias">
+<meta name="theme-color" content="#0A1120">
+<style>
+:root {
+  --bg: #0F172A;
+  --card: #1E293B;
+  --card2: #263348;
+  --border: #334155;
+  --text: #F1F5F9;
+  --text2: #94A3B8;
+  --text3: #64748B;
+  --accent: #6366F1;
+  --accent-h: #4F46E5;
+  --success: #10B981;
+  --warning: #F59E0B;
+  --danger: #EF4444;
+  --info: #3B82F6;
+  --orange: #F97316;
+  --sidebar-w: 230px;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); display: flex; height: 100vh; overflow: hidden; font-size: 14px; }
+
+/* SIDEBAR */
+.sidebar { width: var(--sidebar-w); min-width: var(--sidebar-w); background: #0A1120; border-right: 1px solid var(--border); display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+.sidebar-logo { padding: 18px 20px 14px; display: flex; align-items: center; gap: 12px; }
+.sidebar-logo-avatar { width: 42px; height: 42px; border-radius: 12px; background: linear-gradient(135deg, #F97316, #EC4899); display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0; box-shadow: 0 6px 18px rgba(249,115,22,0.3); }
+.sidebar-logo-text h1 { font-size: 15px; font-weight: 700; color: var(--text); letter-spacing: -0.3px; }
+.sidebar-logo-text span { font-size: 11px; color: var(--text3); }
+.sidebar-nav { flex: 1; overflow-y: auto; padding: 8px 10px; }
+.nav-item { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 8px; cursor: pointer; color: var(--text2); font-size: 13.5px; font-weight: 500; transition: all 0.15s; margin-bottom: 2px; user-select: none; }
+.nav-item:hover { background: var(--card); color: var(--text); }
+.nav-item.active { background: var(--accent); color: #fff; }
+.nav-item .icon { font-size: 16px; width: 20px; text-align: center; }
+.nav-item .nav-count { margin-left: auto; background: var(--danger); color: #fff; font-size: 10px; font-weight: 700; border-radius: 10px; padding: 1px 7px; }
+.nav-item .nav-count.warn { background: var(--warning); color: #1a1200; }
+.nav-section { font-size: 10px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: 0.8px; padding: 16px 12px 6px; }
+.sidebar-bottom { padding: 12px 10px; border-top: 1px solid var(--border); }
+.side-total { background: linear-gradient(135deg, #10B981, #059669); border-radius: 10px; padding: 14px; }
+.side-total .label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.85; margin-bottom: 4px; }
+.side-total .valor { font-size: 18px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.side-total .sub { font-size: 11px; opacity: 0.85; margin-top: 2px; }
+
+/* MAIN */
+.main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+.topbar { padding: 18px 28px 14px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-shrink: 0; background: rgba(15,23,42,0.7); backdrop-filter: blur(10px); }
+.topbar h2 { font-size: 20px; font-weight: 700; }
+.topbar .sub { font-size: 12px; color: var(--text3); margin-top: 2px; }
+.topbar .actions { display: flex; gap: 8px; }
+.content { flex: 1; overflow-y: auto; padding: 24px 28px 40px; }
+
+.page { display: none; }
+.page.active { display: block; }
+
+/* CARDS */
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+.card-sm { padding: 14px 16px; }
+.cards-grid { display: grid; gap: 16px; }
+.grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.card-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text3); margin-bottom: 6px; }
+.card-value { font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.card-sub { font-size: 12px; color: var(--text2); margin-top: 4px; }
+.kpi { position: relative; overflow: hidden; }
+.kpi .kpi-icon { position: absolute; right: 14px; top: 14px; font-size: 22px; opacity: 0.35; }
+.card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; gap: 8px; }
+.card-head h3 { font-size: 14px; font-weight: 700; }
+
+/* BUTTONS */
+.btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; transition: all 0.15s; user-select: none; white-space: nowrap; font-family: inherit; }
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { background: var(--accent-h); }
+.btn-success { background: var(--success); color: #fff; }
+.btn-success:hover { background: #059669; }
+.btn-whats { background: #25D366; color: #06290f; }
+.btn-whats:hover { background: #1ebe5a; }
+.btn-ghost { background: transparent; color: var(--text2); border: 1px solid var(--border); }
+.btn-ghost:hover { background: var(--card2); color: var(--text); }
+.btn-danger { background: transparent; color: var(--danger); border: 1px solid var(--danger); }
+.btn-danger:hover { background: var(--danger); color: #fff; }
+.btn-sm { padding: 5px 10px; font-size: 12px; }
+.btn-xs { padding: 3px 8px; font-size: 11px; border-radius: 6px; }
+.btn-icon { background: transparent; border: none; color: var(--text2); cursor: pointer; padding: 4px 6px; border-radius: 6px; font-size: 14px; }
+.btn-icon:hover { background: var(--card2); color: var(--text); }
+
+/* BADGES */
+.badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+.badge-success { background: rgba(16,185,129,0.15); color: var(--success); }
+.badge-danger { background: rgba(239,68,68,0.15); color: var(--danger); }
+.badge-warning { background: rgba(245,158,11,0.15); color: var(--warning); }
+.badge-info { background: rgba(59,130,246,0.15); color: var(--info); }
+.badge-accent { background: rgba(99,102,241,0.18); color: #A5B4FC; }
+.badge-gray { background: rgba(148,163,184,0.15); color: var(--text2); }
+.badge-orange { background: rgba(249,115,22,0.15); color: var(--orange); }
+
+.pos { color: var(--success); }
+.neg { color: var(--danger); }
+.muted { color: var(--text3); }
+
+/* FORMS */
+.form-group { margin-bottom: 14px; }
+.form-row { display: grid; gap: 12px; }
+.form-row.col2 { grid-template-columns: 1fr 1fr; }
+.form-row.col3 { grid-template-columns: 1fr 1fr 1fr; }
+.form-row.col4 { grid-template-columns: 1fr 1fr 1fr 1fr; }
+label { display: block; font-size: 12px; font-weight: 600; color: var(--text2); margin-bottom: 5px; }
+input, select, textarea { width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 9px 12px; color: var(--text); font-size: 14px; font-family: inherit; outline: none; transition: border-color 0.15s; }
+input:focus, select:focus, textarea:focus { border-color: var(--accent); }
+select option { background: var(--card); }
+textarea { resize: vertical; min-height: 64px; line-height: 1.45; }
+input[type="color"] { padding: 4px 6px; height: 38px; cursor: pointer; }
+input[type="checkbox"] { width: 16px; height: 16px; padding: 0; accent-color: var(--accent); cursor: pointer; flex-shrink: 0; }
+.check-line { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text); font-weight: 500; cursor: pointer; margin: 0; }
+.form-section { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: var(--accent); margin: 18px 0 10px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+.form-section:first-child { margin-top: 0; }
+.hint { font-size: 11.5px; color: var(--text3); margin-top: 4px; }
+.check-list { max-height: 170px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; padding: 6px; background: var(--bg); }
+.check-list .check-line { padding: 6px 8px; border-radius: 6px; }
+.check-list .check-line:hover { background: var(--card); }
+.preview-box { background: var(--bg); border: 1px dashed var(--border); border-radius: 8px; padding: 10px 12px; font-size: 12.5px; color: var(--text2); max-height: 180px; overflow-y: auto; }
+.preview-box div { padding: 2px 0; }
+
+/* FILTER BAR */
+.filtros { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; align-items: center; }
+.filtros input, .filtros select { width: auto; min-width: 160px; padding: 7px 10px; font-size: 13px; }
+.filtros .busca { min-width: 240px; }
+.seg { display: inline-flex; background: var(--card); border: 1px solid var(--border); border-radius: 9px; padding: 3px; gap: 2px; }
+.seg button { background: none; border: none; color: var(--text2); font-size: 12.5px; font-weight: 600; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-family: inherit; }
+.seg button:hover { color: var(--text); }
+.seg button.on { background: var(--accent); color: #fff; }
+
+/* TABLES */
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; padding: 10px 14px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text3); border-bottom: 1px solid var(--border); white-space: nowrap; }
+td { padding: 11px 14px; border-bottom: 1px solid rgba(51,65,85,0.5); font-size: 13px; vertical-align: middle; }
+tr:last-child td { border-bottom: none; }
+tbody tr:hover td { background: rgba(255,255,255,0.02); }
+tr.clicavel { cursor: pointer; }
+.td-mono { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.td-acoes { white-space: nowrap; text-align: right; }
+.td-tema { max-width: 320px; }
+.td-tema .t1 { font-weight: 600; }
+.td-tema .t2 { font-size: 11.5px; color: var(--text3); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+tr.linha-atrasada td { background: rgba(239,68,68,0.05); }
+tr.linha-hoje td { background: rgba(249,115,22,0.06); }
+tr.linha-apagada td { opacity: 0.55; }
+
+/* AVATAR */
+.avatar { width: 32px; height: 32px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; color: #fff; flex-shrink: 0; }
+.avatar-lg { width: 52px; height: 52px; font-size: 18px; }
+.pessoa { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.pessoa .nome { font-weight: 600; }
+.pessoa .sub { font-size: 11.5px; color: var(--text3); }
+
+/* PROGRESS */
+.progress-bar { background: var(--card2); border-radius: 4px; height: 6px; overflow: hidden; min-width: 80px; }
+.progress-fill { height: 100%; border-radius: 4px; background: var(--accent); transition: width 0.3s; }
+.prog-txt { font-size: 11px; color: var(--text3); margin-top: 3px; }
+
+/* LISTAS DO DASHBOARD */
+.lista-item { display: flex; align-items: center; gap: 12px; padding: 10px 4px; border-bottom: 1px solid rgba(51,65,85,0.5); cursor: pointer; border-radius: 6px; }
+.lista-item:last-child { border-bottom: none; }
+.lista-item:hover { background: rgba(255,255,255,0.025); }
+.data-box { width: 48px; flex-shrink: 0; text-align: center; background: var(--card2); border-radius: 8px; padding: 5px 0; }
+.data-box .d { font-size: 17px; font-weight: 800; line-height: 1.1; }
+.data-box .m { font-size: 10px; text-transform: uppercase; color: var(--text3); font-weight: 700; }
+.data-box.hoje { background: rgba(249,115,22,0.18); }
+.data-box.hoje .m { color: var(--orange); }
+.lista-item .info { flex: 1; min-width: 0; }
+.lista-item .info .l1 { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lista-item .info .l2 { font-size: 12px; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+.lista-item .dir { text-align: right; flex-shrink: 0; }
+
+.alerta { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 10px; margin-bottom: 16px; font-size: 13px; }
+.alerta-warn { background: rgba(245,158,11,0.1); border: 1px solid rgba(245,158,11,0.3); }
+.alerta-danger { background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.3); }
+.alerta .grow { flex: 1; }
+
+/* AGENDA */
+.cal-toolbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; gap: 10px; flex-wrap: wrap; }
+.cal-toolbar h3 { font-size: 18px; font-weight: 700; text-transform: capitalize; min-width: 190px; }
+.cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+.cal-head { background: var(--card2); padding: 8px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text3); text-align: center; }
+.cal-day { background: var(--card); min-height: 116px; padding: 6px; cursor: pointer; transition: background 0.1s; min-width: 0; }
+.cal-day:hover { background: #22304a; }
+.cal-day.outro { background: #19233a; }
+.cal-day.outro .cal-num { opacity: 0.4; }
+.cal-day.hoje { box-shadow: inset 0 0 0 2px var(--orange); }
+.cal-num { font-size: 12px; font-weight: 700; color: var(--text2); margin-bottom: 4px; display: flex; justify-content: space-between; }
+.cal-day.hoje .cal-num span:first-child { background: var(--orange); color: #fff; border-radius: 10px; padding: 0 7px; }
+.cal-ev { font-size: 11px; padding: 3px 6px; border-radius: 4px; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-left: 3px solid; cursor: pointer; }
+.cal-ev:hover { filter: brightness(1.25); }
+.cal-ev.cancelada { text-decoration: line-through; opacity: 0.5; }
+.cal-ev.pag { border-left-color: var(--success); background: rgba(16,185,129,0.1); color: #6EE7B7; }
+.cal-ev.pag.atrasado { border-left-color: var(--danger); background: rgba(239,68,68,0.12); color: #FCA5A5; }
+.cal-mais { font-size: 10.5px; color: var(--text3); margin-top: 3px; padding-left: 4px; }
+.legenda { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--text2); margin-top: 12px; }
+.legenda span { display: inline-flex; align-items: center; gap: 6px; }
+.dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+
+/* TABS */
+.tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--border); margin-bottom: 18px; }
+.tab { padding: 9px 14px; cursor: pointer; color: var(--text2); font-size: 13px; font-weight: 600; border-bottom: 2px solid transparent; margin-bottom: -1px; user-select: none; }
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--text); border-bottom-color: var(--accent); }
+.tab .n { font-size: 10.5px; background: var(--card2); border-radius: 8px; padding: 0 6px; margin-left: 4px; color: var(--text2); }
+
+.info-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px 20px; }
+.info-grid .k { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px; color: var(--text3); margin-bottom: 3px; }
+.info-grid .v { font-size: 13.5px; word-break: break-word; }
+.bloco-texto { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; font-size: 13px; white-space: pre-wrap; line-height: 1.5; }
+
+.nota { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; margin-bottom: 10px; }
+.nota .cab { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--text3); margin-bottom: 6px; }
+.nota .txt { white-space: pre-wrap; font-size: 13px; line-height: 1.5; }
+
+/* PROGRAMAS */
+.prog-card { display: flex; flex-direction: column; }
+.prog-card h3 { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
+.prog-card .desc { font-size: 12.5px; color: var(--text2); margin-bottom: 12px; }
+.prog-meta { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+.temas-lista { list-style: none; counter-reset: t; flex: 1; font-size: 12.5px; max-height: 260px; overflow-y: auto; }
+.temas-lista li { counter-increment: t; padding: 5px 0; border-bottom: 1px solid rgba(51,65,85,0.4); display: flex; gap: 8px; color: var(--text2); }
+.temas-lista li::before { content: counter(t); min-width: 20px; height: 20px; border-radius: 50%; background: var(--card2); color: var(--text); font-size: 10.5px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+
+/* MODALS */
+.overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: none; align-items: center; justify-content: center; z-index: 1000; backdrop-filter: blur(4px); }
+.overlay.open { display: flex; }
+.modal { background: var(--card); border: 1px solid var(--border); border-radius: 16px; width: 92%; max-width: 560px; max-height: 92vh; display: flex; flex-direction: column; box-shadow: 0 30px 60px rgba(0,0,0,0.5); }
+.modal-lg { max-width: 720px; }
+.modal-xl { max-width: 1000px; }
+.modal-header { padding: 18px 24px 14px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; gap: 12px; }
+.modal-header h3 { font-size: 16px; font-weight: 700; }
+.modal-header .passo { font-size: 11px; color: var(--accent); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+.modal-body { padding: 20px 24px; overflow-y: auto; flex: 1; }
+.modal-footer { padding: 14px 24px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; flex-shrink: 0; align-items: center; }
+.modal-footer .esq { margin-right: auto; display: flex; gap: 8px; }
+.modal-close { background: none; border: none; color: var(--text2); font-size: 20px; cursor: pointer; padding: 4px 8px; border-radius: 6px; line-height: 1; }
+.modal-close:hover { color: var(--text); background: var(--card2); }
+
+/* MISC */
+.empty-state { text-align: center; padding: 50px 20px; color: var(--text3); }
+.empty-state .icon { font-size: 44px; margin-bottom: 10px; }
+.empty-state p { font-size: 14px; margin-bottom: 16px; }
+.empty-mini { text-align: center; padding: 24px 10px; color: var(--text3); font-size: 13px; }
+.flex { display: flex; }
+.items-center { align-items: center; }
+.justify-between { justify-content: space-between; }
+.gap-8 { gap: 8px; }
+.mt-16 { margin-top: 16px; }
+.mt-24 { margin-top: 24px; }
+.mb-16 { margin-bottom: 16px; }
+.text-sm { font-size: 12px; }
+.font-bold { font-weight: 700; }
+.chart-wrap { position: relative; height: 240px; }
+.chart-wrap canvas { width: 100%; height: 100%; display: block; }
+.link { color: #A5B4FC; text-decoration: none; cursor: pointer; }
+.link:hover { text-decoration: underline; }
+
+.toastbox { position: fixed; bottom: 24px; right: 24px; z-index: 9999; display: flex; flex-direction: column; gap: 8px; }
+.toast { background: var(--card2); border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; font-size: 13px; animation: slideIn 0.2s ease; max-width: 340px; box-shadow: 0 10px 30px rgba(0,0,0,0.4); }
+.toast.success { border-left: 3px solid var(--success); }
+.toast.error { border-left: 3px solid var(--danger); }
+.toast.info { border-left: 3px solid var(--info); }
+@keyframes slideIn { from { transform: translateX(20px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+@media (max-width: 1250px) {
+  .grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .info-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* BOTÃO DE SINCRONIZAR */
+.topbar-dir { display: flex; align-items: center; gap: 10px; }
+.sync-btn { position: relative; width: 34px; height: 34px; border-radius: 50%; border: none; background: rgba(255,255,255,0.06); color: var(--text); font-size: 16px; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; }
+.sync-btn:hover { background: rgba(255,255,255,0.12); }
+.sync-btn.syncing .ic { animation: girar 0.9s linear infinite; }
+.sync-btn .bd { position: absolute; top: -1px; right: -1px; width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--bg); display: none; }
+.sync-btn.synced .bd { display: block; background: var(--success); }
+.sync-btn.erro .bd { display: block; background: var(--danger); }
+@keyframes girar { to { transform: rotate(360deg); } }
+
+/* LOGIN (iPhone) */
+#login-screen { position: fixed; inset: 0; z-index: 99999; display: none; align-items: center; justify-content: center; padding: 20px; background: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(249,115,22,0.16) 0%, transparent 70%), radial-gradient(ellipse 60% 80% at 80% 100%, rgba(236,72,153,0.10) 0%, transparent 60%), #050A14; }
+.login-card { width: 100%; max-width: 380px; background: rgba(255,255,255,0.03); border: 1px solid rgba(249,115,22,0.28); border-radius: 26px; padding: 40px 30px 32px; backdrop-filter: blur(24px); box-shadow: 0 32px 64px rgba(0,0,0,0.6); text-align: center; }
+.login-card.shake { animation: shake 0.4s ease; }
+@keyframes shake { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-10px)} 40%{transform:translateX(10px)} 60%{transform:translateX(-8px)} 80%{transform:translateX(8px)} }
+.login-card img { width: 84px; height: 84px; border-radius: 20px; box-shadow: 0 10px 30px rgba(249,115,22,0.35); }
+.login-card h2 { margin-top: 16px; font-size: 22px; font-weight: 800; background: linear-gradient(135deg, #FDBA74, #F97316, #EC4899); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.login-card p { font-size: 12px; color: rgba(255,255,255,0.4); margin: 4px 0 28px; letter-spacing: 1px; text-transform: uppercase; }
+.login-card input { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; padding: 14px; font-size: 16px; text-align: center; }
+.login-card input:focus { border-color: rgba(249,115,22,0.6); }
+.login-erro { min-height: 18px; font-size: 12.5px; color: var(--danger); margin: 10px 0 14px; }
+.login-btn { width: 100%; padding: 15px; border: none; border-radius: 14px; background: linear-gradient(135deg, #F97316, #EC4899); color: #fff; font-size: 15px; font-weight: 800; cursor: pointer; font-family: inherit; }
+.login-btn:disabled { opacity: 0.6; }
+
+/* MENU INFERIOR (celular) */
+.mobile-nav, .mais-menu { display: none; }
+
+@media (max-width: 768px) {
+  body { height: 100dvh; }
+  .sidebar { display: none; }
+  .topbar { padding: calc(12px + env(safe-area-inset-top, 0px)) 16px 12px; }
+  .topbar h2 { font-size: 18px; }
+  .topbar .sub { display: none; }
+  .topbar .actions .btn:not(.btn-primary) { display: none; }
+  .topbar .actions .btn { padding: 8px 12px; }
+  .content { padding: 14px 12px calc(84px + env(safe-area-inset-bottom, 0px)); }
+  .grid-2, .grid-3 { grid-template-columns: minmax(0, 1fr); }
+  .grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .card { padding: 14px; }
+  .card-value { font-size: 18px; }
+  .kpi .kpi-icon { display: none; }
+  .info-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .form-row.col2, .form-row.col3 { grid-template-columns: minmax(0, 1fr); }
+  .form-row.col4 { grid-template-columns: 1fr 1fr; }
+  input, select, textarea { font-size: 16px; }
+  .filtros { gap: 8px; }
+  .filtros input, .filtros select, .filtros .busca { min-width: 0; width: 100%; }
+  .seg { max-width: 100%; overflow-x: auto; flex-wrap: nowrap; }
+  .seg button { white-space: nowrap; }
+  .alerta { flex-wrap: wrap; }
+  .chart-wrap { height: 190px; }
+  .card-head { flex-wrap: wrap; }
+
+  /* tabelas viram cartões */
+  table, tbody, tr, td { display: block; width: 100%; }
+  thead { display: none; }
+  tbody tr { border: 1px solid var(--border); border-radius: 12px; margin: 6px 0; padding: 6px 12px; background: var(--card); }
+  tbody tr:hover td { background: none; }
+  td { border: none !important; padding: 6px 0; display: flex; justify-content: space-between; align-items: center; gap: 12px; text-align: right; }
+  td[data-label]::before { content: attr(data-label); font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px; color: var(--text3); text-align: left; flex-shrink: 0; }
+  td:empty { display: none; }
+  td > div:not(.pessoa), td .progress-bar { text-align: right; }
+  td .progress-bar { width: 50%; margin-left: auto; }
+  .td-tema { max-width: none; }
+  .td-tema .t2 { white-space: normal; }
+  .td-acoes { justify-content: flex-end; flex-wrap: wrap; }
+  .td-acoes:empty { display: none; }
+  .td-acoes .btn { padding: 7px 12px; font-size: 12.5px; }
+
+  /* agenda */
+  .cal-toolbar h3 { font-size: 16px; min-width: 0; }
+  .cal-day { min-height: 64px; padding: 3px; }
+  .cal-num { font-size: 11px; }
+  .cal-ev { font-size: 9.5px; padding: 1px 3px; border-left-width: 2px; }
+  .cal-head { padding: 6px 2px; font-size: 10px; }
+
+  /* modais em tela cheia */
+  .overlay { align-items: flex-end; }
+  .modal, .modal-lg, .modal-xl { width: 100%; max-width: 100%; max-height: 94dvh; border-radius: 18px 18px 0 0; }
+  .modal-header { padding: 14px 16px 12px; flex-wrap: wrap; }
+  .modal-body { padding: 16px; }
+  .modal-footer { padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px)); flex-wrap: wrap; }
+  .modal-footer .esq { width: 100%; margin-bottom: 4px; }
+  .tabs { overflow-x: auto; }
+  .tab { white-space: nowrap; padding: 9px 10px; }
+  .toastbox { left: 16px; right: 16px; bottom: calc(80px + env(safe-area-inset-bottom, 0px)); }
+
+  .mobile-nav { display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 500; background: rgba(10,17,32,0.97); border-top: 1px solid rgba(255,255,255,0.08); padding-bottom: env(safe-area-inset-bottom, 0px); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); }
+  .mnav-item { flex: 1; height: 58px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; color: var(--text3); font-size: 10px; font-weight: 600; cursor: pointer; user-select: none; }
+  .mnav-item .mi { font-size: 21px; line-height: 1; }
+  .mnav-item.active { color: #A5B4FC; }
+  .mais-menu { position: fixed; left: 0; right: 0; bottom: calc(58px + env(safe-area-inset-bottom, 0px)); z-index: 499; background: rgba(10,17,32,0.98); border-top: 1px solid rgba(255,255,255,0.08); padding: 16px; gap: 10px; }
+  .mais-menu.open { display: grid; grid-template-columns: 1fr 1fr; }
+  .mais-menu .mnav-item { background: rgba(255,255,255,0.05); border-radius: 12px; height: 70px; font-size: 12px; }
+}
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <div class="sidebar-logo-avatar">🚀</div>
+    <div class="sidebar-logo-text">
+      <h1>Mentorias</h1>
+      <span>E-commerce</span>
+    </div>
+  </div>
+  <nav class="sidebar-nav" id="nav">
+    <div class="nav-section">Geral</div>
+    <div class="nav-item" data-page="dashboard"><span class="icon">📊</span>Visão Geral</div>
+    <div class="nav-item" data-page="agenda"><span class="icon">📅</span>Agenda</div>
+    <div class="nav-section">Mentoria</div>
+    <div class="nav-item" data-page="aulas"><span class="icon">🎓</span>Aulas<span class="nav-count warn" id="cnt-aulas" style="display:none"></span></div>
+    <div class="nav-item" data-page="alunos"><span class="icon">👥</span>Mentorados</div>
+    <div class="nav-item" data-page="programas"><span class="icon">📚</span>Programas &amp; Temas</div>
+    <div class="nav-section">Gestão</div>
+    <div class="nav-item" data-page="financeiro"><span class="icon">💰</span>Financeiro<span class="nav-count" id="cnt-fin" style="display:none"></span></div>
+    <div class="nav-item" data-page="config"><span class="icon">⚙️</span>Configurações</div>
+  </nav>
+  <div class="sidebar-bottom">
+    <div class="side-total">
+      <div class="label" id="side-label">Recebido no mês</div>
+      <div class="valor" id="side-valor">R$ 0,00</div>
+      <div class="sub" id="side-sub"></div>
+    </div>
+  </div>
+</aside>
+
+<!-- MAIN -->
+<main class="main">
+  <div class="topbar">
+    <div>
+      <h2 id="page-title">Visão Geral</h2>
+      <div class="sub" id="page-sub"></div>
+    </div>
+    <div class="topbar-dir">
+      <button class="sync-btn" id="sync-btn" style="display:none" onclick="sincronizar(true)"><span class="ic">🔄</span><span class="bd"></span></button>
+      <div class="actions" id="topbar-actions"></div>
+    </div>
+  </div>
+  <div class="content" id="content">
+    <section class="page" id="page-dashboard"></section>
+    <section class="page" id="page-agenda"></section>
+    <section class="page" id="page-aulas"></section>
+    <section class="page" id="page-alunos"></section>
+    <section class="page" id="page-programas"></section>
+    <section class="page" id="page-financeiro"></section>
+    <section class="page" id="page-config"></section>
+  </div>
+</main>
+
+<!-- MODAL: MENTORADO -->
+<div class="overlay" id="modal-aluno">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h3 id="aluno-titulo">Novo mentorado</h3>
+      <button class="modal-close" onclick="fecharModal('modal-aluno')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-section">Dados pessoais</div>
+      <div class="form-row col2">
+        <div class="form-group"><label>Nome completo *</label><input id="al-nome" placeholder="Ex.: Maria Souza"></div>
+        <div class="form-group"><label>WhatsApp</label><input id="al-whats" placeholder="(11) 99999-9999"></div>
+      </div>
+      <div class="form-row col3">
+        <div class="form-group"><label>E-mail</label><input id="al-email" type="email"></div>
+        <div class="form-group"><label>Instagram</label><input id="al-insta" placeholder="@usuario"></div>
+        <div class="form-group"><label>Cidade / UF</label><input id="al-cidade"></div>
+      </div>
+
+      <div class="form-section">Negócio</div>
+      <div class="form-row col3">
+        <div class="form-group"><label>Nome da loja</label><input id="al-loja"></div>
+        <div class="form-group"><label>Plataforma principal</label><select id="al-plataforma"></select></div>
+        <div class="form-group"><label>Nicho</label><input id="al-nicho" placeholder="Ex.: moda fitness"></div>
+      </div>
+      <div class="form-row col2">
+        <div class="form-group"><label>Site / link da loja</label><input id="al-site" placeholder="https://"></div>
+        <div class="form-group"><label>Faturamento mensal no início (R$)</label><input id="al-fat" type="number" step="0.01" min="0"></div>
+      </div>
+      <div class="form-group"><label>Objetivo / meta da mentoria</label><textarea id="al-objetivo" placeholder="Ex.: sair de R$ 10 mil para R$ 50 mil/mês em 6 meses"></textarea></div>
+
+      <div class="form-section">Mentoria</div>
+      <div class="form-row col3">
+        <div class="form-group"><label>Programa</label><select id="al-programa"></select></div>
+        <div class="form-group"><label>Data de início *</label><input id="al-inicio" type="date"></div>
+        <div class="form-group"><label>Término previsto</label><input id="al-fim" type="date"></div>
+      </div>
+      <div class="form-row col3">
+        <div class="form-group"><label>Status</label><select id="al-status"></select></div>
+        <div class="form-group"><label>Valor contratado (R$)</label><input id="al-valor" type="number" step="0.01" min="0"></div>
+        <div class="form-group"><label>Cor na agenda</label><input id="al-cor" type="color"></div>
+      </div>
+      <div class="form-group"><label>Observações</label><textarea id="al-obs"></textarea></div>
+      <div class="form-group" id="al-wizard-wrap">
+        <label class="check-line"><input type="checkbox" id="al-wizard" checked> Em seguida, gerar o cronograma de aulas e as parcelas de pagamento</label>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="fecharModal('modal-aluno')">Cancelar</button>
+      <button class="btn btn-primary" onclick="salvarAluno()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: AULA -->
+<div class="overlay" id="modal-aula">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h3 id="aula-titulo">Nova aula</h3>
+      <button class="modal-close" onclick="fecharModal('modal-aula')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>Mentorado(s) *</label>
+        <input id="au-busca-aluno" placeholder="Filtrar mentorados..." style="margin-bottom:6px" oninput="renderChecksAula()">
+        <div class="check-list" id="au-alunos"></div>
+        <div class="hint">Marque mais de um para aula em grupo.</div>
+      </div>
+      <div class="form-row col4">
+        <div class="form-group"><label>Data *</label><input id="au-data" type="date"></div>
+        <div class="form-group"><label>Horário *</label><input id="au-hora" type="time"></div>
+        <div class="form-group"><label>Duração (min)</label><input id="au-duracao" type="number" min="5" step="5"></div>
+        <div class="form-group"><label>Nº da aula</label><input id="au-numero" type="number" min="1"></div>
+      </div>
+      <div class="form-row col2">
+        <div class="form-group"><label>Tema *</label><input id="au-tema" list="lista-temas" placeholder="Ex.: Tráfego pago no Meta Ads"><datalist id="lista-temas"></datalist></div>
+        <div class="form-group"><label>Status</label><select id="au-status" onchange="renderPresencaAula()"></select></div>
+      </div>
+      <div class="form-group" id="au-presenca-wrap" style="display:none">
+        <label>Presença</label>
+        <div class="check-list" id="au-presenca"></div>
+      </div>
+      <div class="form-row col2">
+        <div class="form-group"><label>Link da reunião</label><input id="au-link" placeholder="Meet / Zoom"></div>
+        <div class="form-group"><label>Link da gravação</label><input id="au-gravacao" placeholder="Drive / YouTube"></div>
+      </div>
+      <div class="form-group"><label>Conteúdo / pauta</label><textarea id="au-pauta" placeholder="O que será abordado"></textarea></div>
+      <div class="form-row col2">
+        <div class="form-group"><label>Tarefas para o aluno</label><textarea id="au-tarefas" placeholder="Lição de casa até a próxima aula"></textarea></div>
+        <div class="form-group"><label>Anotações da aula</label><textarea id="au-notas" placeholder="Como foi, pontos de atenção"></textarea></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <div class="esq">
+        <button class="btn btn-danger btn-sm" id="au-excluir" onclick="excluirAula()">Excluir</button>
+        <button class="btn btn-whats btn-sm" id="au-whats" onclick="lembreteAulaWhats()">WhatsApp</button>
+        <button class="btn btn-ghost btn-sm" id="au-gcal" onclick="aulaGoogleAgenda()">📆 Google Agenda</button>
+      </div>
+      <button class="btn btn-ghost" onclick="fecharModal('modal-aula')">Cancelar</button>
+      <button class="btn btn-primary" onclick="salvarAula()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: PAGAMENTO -->
+<div class="overlay" id="modal-pag">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="pag-titulo">Nova cobrança</h3>
+      <button class="modal-close" onclick="fecharModal('modal-pag')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group"><label>Mentorado *</label><select id="pg-aluno"></select></div>
+      <div class="form-group"><label>Descrição</label><input id="pg-desc" placeholder="Ex.: Parcela 1/3"></div>
+      <div class="form-row col3">
+        <div class="form-group"><label>Valor (R$) *</label><input id="pg-valor" type="number" step="0.01" min="0"></div>
+        <div class="form-group"><label>Vencimento *</label><input id="pg-venc" type="date"></div>
+        <div class="form-group"><label>Forma</label><select id="pg-forma"></select></div>
+      </div>
+      <div class="form-row col2" style="align-items:end">
+        <div class="form-group"><label class="check-line"><input type="checkbox" id="pg-pago" onchange="$('pg-pagoem').disabled=!this.checked; if(this.checked && !$('pg-pagoem').value) $('pg-pagoem').value=hojeISO();"> Já foi pago</label></div>
+        <div class="form-group"><label>Data do pagamento</label><input id="pg-pagoem" type="date"></div>
+      </div>
+      <div class="form-group"><label>Observação</label><input id="pg-obs"></div>
+    </div>
+    <div class="modal-footer">
+      <div class="esq"><button class="btn btn-danger btn-sm" id="pg-excluir" onclick="excluirPagamento()">Excluir</button></div>
+      <button class="btn btn-ghost" onclick="fecharModal('modal-pag')">Cancelar</button>
+      <button class="btn btn-primary" onclick="salvarPagamento()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: PROGRAMA -->
+<div class="overlay" id="modal-prog">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h3 id="prog-titulo">Novo programa</h3>
+      <button class="modal-close" onclick="fecharModal('modal-prog')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group"><label>Nome do programa *</label><input id="pr-nome" placeholder="Ex.: Mentoria Individual 12 semanas"></div>
+      <div class="form-group"><label>Descrição</label><input id="pr-desc"></div>
+      <div class="form-row col3">
+        <div class="form-group"><label>Frequência</label><select id="pr-freq"></select></div>
+        <div class="form-group"><label>Duração da aula (min)</label><input id="pr-duracao" type="number" min="5" step="5"></div>
+        <div class="form-group"><label>Horário padrão</label><input id="pr-hora" type="time"></div>
+      </div>
+      <div class="form-row col2">
+        <div class="form-group"><label>Valor padrão (R$)</label><input id="pr-valor" type="number" step="0.01" min="0"></div>
+        <div class="form-group"><label>Nº de parcelas sugerido</label><input id="pr-parcelas" type="number" min="1"></div>
+      </div>
+      <div class="form-group">
+        <label>Temas das aulas (um por linha, na ordem) *</label>
+        <textarea id="pr-temas" style="min-height:220px" oninput="$('pr-qtd').textContent=linhas(this.value).length"></textarea>
+        <div class="hint"><b id="pr-qtd">0</b> aulas — o número de linhas define quantas aulas o cronograma gera.</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <div class="esq"><button class="btn btn-danger btn-sm" id="pr-excluir" onclick="excluirPrograma()">Excluir</button></div>
+      <button class="btn btn-ghost" onclick="fecharModal('modal-prog')">Cancelar</button>
+      <button class="btn btn-primary" onclick="salvarPrograma()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: GERAR CRONOGRAMA -->
+<div class="overlay" id="modal-gerar-aulas">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <div><div class="passo" id="ga-passo"></div><h3>Gerar cronograma de aulas</h3></div>
+      <button class="modal-close" onclick="pularGerarAulas()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group"><label>Mentorado</label><input id="ga-aluno-nome" disabled></div>
+      <div class="form-row col4">
+        <div class="form-group"><label>1ª aula em *</label><input id="ga-inicio" type="date" oninput="previewGerarAulas()"></div>
+        <div class="form-group"><label>Horário *</label><input id="ga-hora" type="time" oninput="previewGerarAulas()"></div>
+        <div class="form-group"><label>Duração (min)</label><input id="ga-duracao" type="number" min="5" step="5"></div>
+        <div class="form-group"><label>Frequência</label><select id="ga-freq" onchange="previewGerarAulas()"></select></div>
+      </div>
+      <div class="form-row col2">
+        <div class="form-group"><label>Numerar a partir da aula nº</label><input id="ga-numero" type="number" min="1" oninput="previewGerarAulas()"></div>
+        <div class="form-group"><label>Link fixo da reunião</label><input id="ga-link" placeholder="Opcional — Meet / Zoom"></div>
+      </div>
+      <div class="form-group">
+        <label>Temas (um por linha — cada linha vira uma aula)</label>
+        <textarea id="ga-temas" style="min-height:160px" oninput="previewGerarAulas()"></textarea>
+      </div>
+      <label>Prévia</label>
+      <div class="preview-box" id="ga-preview"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="pularGerarAulas()" id="ga-pular">Pular</button>
+      <button class="btn btn-primary" onclick="confirmarGerarAulas()">Gerar aulas</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: GERAR PARCELAS -->
+<div class="overlay" id="modal-gerar-parc">
+  <div class="modal">
+    <div class="modal-header">
+      <div><div class="passo" id="gp-passo"></div><h3>Gerar parcelas de pagamento</h3></div>
+      <button class="modal-close" onclick="pularGerarParcelas()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group"><label>Mentorado</label><input id="gp-aluno-nome" disabled></div>
+      <div class="form-row col2">
+        <div class="form-group"><label>Valor total (R$) *</label><input id="gp-total" type="number" step="0.01" min="0" oninput="previewGerarParcelas()"></div>
+        <div class="form-group"><label>Nº de parcelas *</label><input id="gp-n" type="number" min="1" max="60" oninput="previewGerarParcelas()"></div>
+      </div>
+      <div class="form-row col2">
+        <div class="form-group"><label>1º vencimento *</label><input id="gp-venc" type="date" oninput="previewGerarParcelas()"></div>
+        <div class="form-group"><label>Forma de pagamento</label><select id="gp-forma"></select></div>
+      </div>
+      <div class="form-group"><label>Descrição base</label><input id="gp-desc" placeholder="Mentoria" oninput="previewGerarParcelas()"></div>
+      <div class="form-group"><label class="check-line"><input type="checkbox" id="gp-entrada"> A 1ª parcela já foi paga (entrada)</label></div>
+      <label>Prévia</label>
+      <div class="preview-box" id="gp-preview"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="pularGerarParcelas()" id="gp-pular">Pular</button>
+      <button class="btn btn-primary" onclick="confirmarGerarParcelas()">Gerar parcelas</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: EVOLUÇÃO -->
+<div class="overlay" id="modal-evo">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Resultado do mês</h3>
+      <button class="modal-close" onclick="fecharModal('modal-evo')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row col2">
+        <div class="form-group"><label>Mês *</label><input id="ev-mes" type="month"></div>
+        <div class="form-group"><label>Faturamento (R$) *</label><input id="ev-fat" type="number" step="0.01" min="0"></div>
+      </div>
+      <div class="form-row col2">
+        <div class="form-group"><label>Nº de pedidos</label><input id="ev-pedidos" type="number" min="0"></div>
+        <div class="form-group"><label>Investimento em anúncios (R$)</label><input id="ev-ads" type="number" step="0.01" min="0"></div>
+      </div>
+      <div class="form-group"><label>Observação</label><input id="ev-obs"></div>
+    </div>
+    <div class="modal-footer">
+      <div class="esq"><button class="btn btn-danger btn-sm" id="ev-excluir" onclick="excluirEvolucao()">Excluir</button></div>
+      <button class="btn btn-ghost" onclick="fecharModal('modal-evo')">Cancelar</button>
+      <button class="btn btn-primary" onclick="salvarEvolucao()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: DETALHE DO MENTORADO -->
+<div class="overlay" id="modal-detalhe">
+  <div class="modal modal-xl">
+    <div class="modal-header" id="det-header"></div>
+    <div class="modal-body" id="det-body"></div>
+  </div>
+</div>
+
+<!-- MENU INFERIOR (celular) -->
+<nav class="mobile-nav">
+  <div class="mnav-item" data-page="dashboard"><span class="mi">📊</span>Início</div>
+  <div class="mnav-item" data-page="agenda"><span class="mi">📅</span>Agenda</div>
+  <div class="mnav-item" data-page="aulas"><span class="mi">🎓</span>Aulas</div>
+  <div class="mnav-item" data-page="alunos"><span class="mi">👥</span>Alunos</div>
+  <div class="mnav-item" data-page="financeiro"><span class="mi">💰</span>Financeiro</div>
+  <div class="mnav-item" id="mnav-mais" onclick="toggleMais()"><span class="mi">⋯</span>Mais</div>
+</nav>
+<div class="mais-menu" id="mais-menu">
+  <div class="mnav-item" data-page="programas"><span class="mi">📚</span>Programas &amp; Temas</div>
+  <div class="mnav-item" data-page="config"><span class="mi">⚙️</span>Configurações</div>
+</div>
+
+<!-- LOGIN (só no app do iPhone) -->
+<div id="login-screen">
+  <form class="login-card" onsubmit="fazerLogin(event)">
+    <img src="assets/icon-192.png" alt="">
+    <h2>Mentorias E-commerce</h2>
+    <p>Acesso restrito</p>
+    <input id="login-senha" type="password" placeholder="Senha" autocomplete="current-password">
+    <div class="login-erro" id="login-erro"></div>
+    <button class="login-btn" id="login-btn" type="submit">Entrar</button>
+  </form>
+</div>
+
+<input type="file" id="input-import" accept=".json,application/json" style="display:none" onchange="importarJSON(this)">
+<div class="toastbox" id="toastbox"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
