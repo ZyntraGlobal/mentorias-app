@@ -1270,7 +1270,7 @@ async function renderConfig() {
       <button class="btn btn-primary" onclick="salvarConfig()">Salvar mensagens</button>
     </div>
     <div class="card"><div class="card-head"><h3>💾 Dados e backup</h3></div>
-      <div class="card-sub mb-16">Os dados ficam no arquivo <b>dados.json</b> dentro da pasta do app (que já sincroniza com o OneDrive). Além disso, o app guarda automaticamente uma cópia por dia na pasta <b>backups</b> (últimos 60 dias).</div>
+      <div class="card-sub mb-16">${window.api ? 'Os dados ficam no arquivo <b>dados.json</b> mostrado abaixo, e o app guarda automaticamente uma cópia por dia na pasta <b>backups</b> (últimos 60 dias).' : 'Os dados ficam guardados neste aparelho.'} Com a sincronização ligada, tudo também fica no GitHub (repositório privado).</div>
       <div class="bloco-texto mb-16" id="cf-caminho" style="font-size:12px">${window.api ? 'carregando...' : 'Modo navegador — dados no armazenamento local do navegador'}</div>
       <div class="flex gap-8" style="flex-wrap:wrap">
         <button class="btn btn-ghost" onclick="exportarJSON()">⬇ Exportar backup</button>
@@ -1390,7 +1390,7 @@ async function sair() {
   if (window.api) {
     // da próxima vez que abrir, pede usuário e senha (só faz sentido com a sincronização configurada)
     if (SYNC.token) await gravarSessaoDesk({ precisaLogin: true });
-    window.close();
+    if (window.api.sairApp) await window.api.sairApp(); else window.close();
     return;
   }
   await guardarToken('');
