@@ -130,6 +130,50 @@ function programaExemplo() {
   };
 }
 
+// Programas de 10 aulas (básico → avançado), um para cada plataforma
+const TEMAS_PLATAFORMA = {
+  geral: ['E-commerce do básico ao avançado', 'Outra', [
+    'Diagnóstico do negócio e fundamentos do e-commerce', 'Escolha de nicho e produtos campeões', 'Fornecedores, custos e precificação',
+    'Estrutura da loja e canais de venda', 'Cadastro de produtos e fotos que vendem', 'Logística, frete e entrega',
+    'Tráfego pago I: Meta Ads', 'Tráfego pago II: Google Ads', 'Pós-venda, CRM e recompra', 'Métricas, escala e plano de crescimento']],
+  shopify: ['Shopify do básico ao avançado', 'Shopify', [
+    'Fundamentos do e-commerce e configuração inicial da Shopify', 'Tema, layout e identidade visual da loja', 'Cadastro de produtos, coleções e fotos que vendem',
+    'Pagamentos, frete e checkout', 'Apps essenciais e integrações', 'Página de produto e otimização de conversão (CRO)',
+    'Tráfego pago: Meta Ads para Shopify', 'Google Ads, Google Shopping e SEO da loja', 'E-mail marketing, carrinho abandonado e pós-venda', 'Métricas, automações e escala']],
+  nuvemshop: ['Nuvemshop do básico ao avançado', 'Nuvemshop', [
+    'Fundamentos e configuração da Nuvemshop', 'Layout, tema e identidade visual', 'Produtos, variações e categorias',
+    'Meios de pagamento, Nuvem Envio e frete', 'Aplicativos e integrações (ERP e marketplaces)', 'Conversão: página de produto, cupons e checkout',
+    'Tráfego pago com Meta Ads', 'Google Ads, Google Shopping e SEO', 'Pós-venda, e-mail marketing e WhatsApp', 'Indicadores, escala e planejamento']],
+  mercadolivre: ['Mercado Livre do básico ao avançado', 'Mercado Livre', [
+    'Fundamentos do Mercado Livre e configuração da conta', 'Reputação, termômetro e regras da plataforma', 'Pesquisa de produtos e concorrência',
+    'Anúncios que vendem: título, fotos e ficha técnica', 'Precificação, tarifas e margem', 'Mercado Envios e Full',
+    'Mercado Ads (Product Ads)', 'Atendimento, perguntas e pós-venda', 'Promoções, campanhas e catálogo', 'Métricas, escala e gestão de estoque']],
+  shopee: ['Shopee do básico ao avançado', 'Shopee', [
+    'Fundamentos da Shopee e configuração da loja', 'Regras, penalidades e métricas de desempenho', 'Pesquisa de produtos e nichos na Shopee',
+    'Anúncios otimizados: título, fotos e vídeos', 'Precificação, comissões e frete grátis', 'Envios e logística',
+    'Shopee Ads', 'Campanhas, cupons e datas promocionais', 'Atendimento, chat e avaliações', 'Métricas e escala da loja']],
+  tiktok: ['TikTok Shop do básico ao avançado', 'TikTok Shop', [
+    'Fundamentos do TikTok Shop e configuração da conta', 'Regras, políticas e saúde da loja', 'Produtos virais e pesquisa de tendências',
+    'Cadastro de produtos e vitrine', 'Conteúdo que vende: vídeos curtos e roteiros', 'Afiliados e creators',
+    'Lives de venda', 'TikTok Ads (GMV Max e campanhas)', 'Logística, envios e atendimento', 'Métricas, escala e estratégia de conteúdo']],
+  amazon: ['Amazon do básico ao avançado', 'Amazon', [
+    'Fundamentos da Amazon e conta de vendedor', 'Regras, métricas da conta e categorias', 'Pesquisa de produtos e concorrência',
+    'Listagem: título, bullets, imagens e conteúdo A+', 'Precificação, tarifas e Buy Box', 'Logística: DBA (FBA) e envios',
+    'Amazon Ads (Sponsored Products)', 'Avaliações e atendimento', 'Promoções, cupons e datas especiais', 'Métricas, escala e gestão de estoque']]
+};
+const idProgPlataforma = chave => 'prog-10-' + chave;
+function chavePlataforma(plataforma) {
+  const k = Object.keys(TEMAS_PLATAFORMA).find(k => TEMAS_PLATAFORMA[k][1] === plataforma);
+  return k || 'geral';
+}
+function programasPlataforma() {
+  return Object.entries(TEMAS_PLATAFORMA).map(([k, [nome, plat, temas]]) => ({
+    id: idProgPlataforma(k), nome, plataforma: k === 'geral' ? '' : plat,
+    descricao: `10 aulas do básico ao avançado${k === 'geral' ? '' : ' em ' + plat}, com 30 dias de suporte no final`,
+    frequencia: 'semanal', duracao: 60, hora: '19:00', valor: 0, parcelas: 1, suporteDias: 30, temas: temas.slice()
+  }));
+}
+
 function dbPadrao() {
   return {
     versao: 1,
@@ -162,7 +206,13 @@ function normalizar(d) {
     aulas: Array.isArray(d.aulas) ? d.aulas : [],
     pagamentos: Array.isArray(d.pagamentos) ? d.pagamentos : []
   };
-  r.alunos.forEach(a => { a.evolucao = a.evolucao || []; a.notas = a.notas || []; a.cor = corValida(a.cor); });
+  // garante os programas de 10 aulas por plataforma (sem recriar os que você excluiu)
+  const del = r._del || {};
+  programasPlataforma().forEach(p => { if (!del[p.id] && !r.programas.some(x => x.id === p.id)) r.programas.push(p); });
+  r.alunos.forEach(a => {
+    a.evolucao = a.evolucao || []; a.notas = a.notas || []; a.cor = corValida(a.cor);
+    if (a.suporte) a.suporte.atendimentos = a.suporte.atendimentos || [];
+  });
   r.aulas.forEach(a => { a.alunoIds = a.alunoIds || []; a.presencas = a.presencas || {}; });
   r.programas.forEach(pr => { pr.temas = pr.temas || []; });
   return r;
@@ -489,7 +539,57 @@ function progressoAluno(id) {
   const as = aulasDoAluno(id).filter(aulaConta);
   const agora = new Date();
   const proxima = as.filter(a => a.status === 'agendada' && fimAula(a) >= agora).sort(porDataHora)[0] || null;
+  const j = jornadaAluno(id);
+  // com programa: progresso = temas já dados (falta não conta, a aula precisa ser remarcada)
+  if (j.total) return { total: j.total, feitas: j.realizadas, proxima };
   return { total: as.length, feitas: as.filter(aulaConsumida).length, proxima };
+}
+// Jornada do programa: uma "vaga" por tema (aula 1..N), com o que aconteceu em cada uma
+function jornadaAluno(id) {
+  const al = getAluno(id);
+  const pr = al && getPrograma(al.programaId);
+  const temas = pr ? pr.temas : [];
+  const aulas = aulasDoAluno(id);
+  const slots = temas.map((tema, i) => {
+    const doSlot = aulas.filter(a => num(a.numero) === i + 1).sort(porDataHora);
+    return {
+      n: i + 1, tema, aulas: doSlot,
+      realizada: doSlot.find(a => a.status === 'realizada') || null,
+      agendada: doSlot.find(a => a.status === 'agendada') || null,
+      faltas: doSlot.filter(a => a.status === 'falta')
+    };
+  });
+  const realizadas = slots.filter(s => s.realizada).length;
+  const concluida = !!temas.length && realizadas === temas.length;
+  return {
+    pr, slots, total: temas.length, realizadas,
+    faltas: aulas.filter(a => a.status === 'falta').length,
+    agendadas: slots.filter(s => !s.realizada && s.agendada).length,
+    concluida, dataFim: concluida ? slots.map(s => s.realizada.data).sort().pop() : ''
+  };
+}
+// Suporte pós-mentoria
+function suporteAluno(al) {
+  const s = al && al.suporte;
+  if (!s || !s.inicio) return null;
+  const dias = num(s.dias) || 30;
+  const fim = addDias(s.inicio, dias);
+  const hoje = hojeISO();
+  const estado = hoje < s.inicio ? 'futuro' : hoje <= fim ? 'ativo' : 'encerrado';
+  return { ...s, dias, fim, estado, restam: diasEntre(hoje, fim), decorridos: Math.min(dias, Math.max(0, diasEntre(s.inicio, hoje))) };
+}
+// Quando a última aula do programa é realizada, o suporte começa sozinho
+function verificarFimJornada(alunoIds) {
+  alunoIds.forEach(id => {
+    const al = getAluno(id);
+    if (!al || (al.suporte && al.suporte.inicio)) return;
+    const j = jornadaAluno(id);
+    if (!j.concluida) return;
+    const diasSup = j.pr && j.pr.suporteDias != null && j.pr.suporteDias !== '' ? num(j.pr.suporteDias) : 30;
+    if (!diasSup) return; // programa sem suporte
+    al.suporte = { inicio: j.dataFim, dias: diasSup, atendimentos: (al.suporte && al.suporte.atendimentos) || [] };
+    setTimeout(() => toast(`🎉 ${primeiroNome(al.nome)} concluiu as ${j.total} aulas! Suporte de ${al.suporte.dias} dias até ${fmtData(addDias(j.dataFim, al.suporte.dias))}`), 400);
+  });
 }
 function proximoNumeroAula(alunoId) {
   const ns = aulasDoAluno(alunoId).filter(aulaConta).map(a => num(a.numero));
@@ -535,9 +635,9 @@ function badgePag(p) {
   if (d <= 7) return badge(`Vence em ${plural(d, 'dia')}`, 'warning');
   return badge('A vencer', 'gray');
 }
-function barraProgresso(feitas, total, cor) {
+function barraProgresso(feitas, total, cor, faltas) {
   const pct = total ? Math.round(feitas / total * 100) : 0;
-  return `<div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:${cor || 'var(--accent)'}"></div></div><div class="prog-txt">${feitas}/${total} aulas · ${pct}%</div>`;
+  return `<div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:${cor || 'var(--accent)'}"></div></div><div class="prog-txt">${feitas}/${total} aulas · ${pct}%${faltas ? ` · <span class="neg">${plural(faltas, 'falta')}</span>` : ''}</div>`;
 }
 function seg(opts, atual, fn) {
   return `<div class="seg">${opts.map(([v, l]) => `<button class="${v === atual ? 'on' : ''}" onclick="${fn(v)}">${l}</button>`).join('')}</div>`;
@@ -667,13 +767,26 @@ function renderDashboard() {
       ${vencendo.length ? vencendo.map(itemPagLista).join('') : '<div class="empty-mini">Nada vencido nem vencendo nos próximos 10 dias. 🎉</div>'}</div>
   </div>`;
 
+  const emSuporte = DB.alunos.map(al => ({ al, sp: suporteAluno(al) }))
+    .filter(x => x.sp && (x.sp.estado !== 'encerrado' || x.al.status === 'ativo'))
+    .sort((a, b) => a.sp.fim.localeCompare(b.sp.fim));
+  if (emSuporte.length) {
+    h += `<div class="card mb-16"><div class="card-head"><h3>🛟 Suporte pós-mentoria</h3></div>${emSuporte.map(({ al, sp }) => {
+      const ult = sp.atendimentos.slice().sort((a, b) => b.data.localeCompare(a.data))[0];
+      return `<div class="lista-item" onclick="abrirDetalhe('${al.id}','suporte')">${avatar(al)}
+        <div class="info"><div class="l1">${esc(al.nome)}</div><div class="l2">${fmtData(sp.inicio)} → ${fmtData(sp.fim)} · ${plural(sp.atendimentos.length, 'atendimento')}${ult ? ' · último ' + fmtDataCurta(ult.data) : ''}</div></div>
+        <div class="dir">${sp.estado === 'ativo' ? badge(`faltam ${plural(sp.restam, 'dia')}`, sp.restam <= 5 ? 'warning' : 'success') : sp.estado === 'futuro' ? badge('começa ' + fmtDataCurta(sp.inicio), 'info')
+          : `<button class="btn btn-success btn-xs" onclick="event.stopPropagation();concluirMentoria('${al.id}')">✓ Concluir</button><div class="muted" style="font-size:11px;margin-top:3px">suporte encerrado</div>`}</div></div>`;
+    }).join('')}</div>`;
+  }
+
   if (ativos.length) {
     h += `<div class="card mb-16"><div class="card-head"><h3>🚀 Andamento dos mentorados ativos</h3></div><div class="table-wrap"><table>
       <thead><tr><th>Mentorado</th><th>Programa</th><th style="width:180px">Progresso</th><th>Próxima aula</th><th>Pagamento</th></tr></thead><tbody>
       ${ativos.sort((a, b) => a.nome.localeCompare(b.nome)).map(al => {
         const pr = progressoAluno(al.id); const prog = getPrograma(al.programaId);
         return `<tr class="clicavel" onclick="abrirDetalhe('${al.id}')"><td>${pessoaHTML(al, esc([al.loja, al.plataforma].filter(Boolean).join(' · ')))}</td>
-          <td class="text-sm">${esc(prog ? prog.nome : '—')}</td><td>${barraProgresso(pr.feitas, pr.total, corValida(al.cor))}</td>
+          <td class="text-sm">${esc(prog ? prog.nome : '—')}</td><td>${barraProgresso(pr.feitas, pr.total, corValida(al.cor), aulasDoAluno(al.id).filter(a => a.status === 'falta').length)}</td>
           <td class="text-sm">${pr.proxima ? `${fmtDataSemana(pr.proxima.data)} · ${pr.proxima.hora}<div class="muted" style="font-size:11px">${esc(pr.proxima.tema)}</div>` : '<span class="muted">—</span>'}</td>
           <td>${badgeFin(al.id)}</td></tr>`;
       }).join('')}</tbody></table></div></div>`;
@@ -952,7 +1065,8 @@ function marcarAula(id, status) {
   a.status = status;
   if (status === 'realizada') a.alunoIds.forEach(al => { if (a.presencas[al] === undefined) a.presencas[al] = true; });
   ajustarCobrancasAula(a);
-  commit(status === 'realizada' ? 'Aula marcada como realizada ✓' : 'Status da aula atualizado');
+  if (status === 'realizada') verificarFimJornada(a.alunoIds);
+  commit(status === 'realizada' ? 'Aula marcada como realizada ✓' : status === 'falta' ? 'Falta registrada — remarque pela Jornada' : 'Status da aula atualizado');
 }
 function abrirLinkAula(id, campo) {
   const a = DB.aulas.find(x => x.id === id);
@@ -989,7 +1103,7 @@ function renderAlunosTabela() {
         <td>${pessoaHTML(al, esc([al.loja, al.plataforma, al.nicho].filter(Boolean).join(' · ')))}</td>
         <td class="text-sm">${esc(prog ? prog.nome : '—')}</td>
         <td class="td-mono">${fmtData(al.inicio)}</td>
-        <td>${barraProgresso(pr.feitas, pr.total, corValida(al.cor))}</td>
+        <td>${barraProgresso(pr.feitas, pr.total, corValida(al.cor), aulasDoAluno(al.id).filter(a => a.status === 'falta').length)}</td>
         <td class="text-sm">${pr.proxima ? `${fmtDataSemana(pr.proxima.data)} · ${esc(pr.proxima.hora)}` : '<span class="muted">—</span>'}</td>
         <td>${badgeFin(al.id)}<div class="prog-txt">${fmtBRL(fin.pago)} de ${fmtBRL(fin.cobrado || al.valor)}</div></td>
         <td>${badge(st.l, st.c)}</td>
@@ -1012,7 +1126,7 @@ function renderProgramas() {
       <div class="flex justify-between items-center gap-8"><h3>${esc(p.nome)}</h3>
         <div class="flex gap-8"><button class="btn btn-ghost btn-xs" onclick="duplicarPrograma('${p.id}')">Duplicar</button><button class="btn btn-ghost btn-xs" onclick="editarPrograma('${p.id}')">✏️ Editar</button></div></div>
       <div class="desc">${esc(p.descricao || '')}</div>
-      <div class="prog-meta">${badge(plural(p.temas.length, 'aula'), 'accent')}${badge((FREQ[p.frequencia] || FREQ.semanal).l, 'info')}${badge((p.duracao || 60) + ' min', 'gray')}${p.hora ? badge('🕖 ' + p.hora, 'gray') : ''}${p.valor ? badge(fmtBRL(p.valor) + (p.parcelas > 1 ? ` em ${p.parcelas}x` : ''), 'success') : ''}${badge(plural(usando.filter(a => a.status === 'ativo').length, 'mentorado ativo', 'mentorados ativos'), 'orange')}</div>
+      <div class="prog-meta">${p.plataforma ? badge('🛒 ' + p.plataforma, 'orange') : ''}${num(p.suporteDias) ? badge('🛟 ' + p.suporteDias + ' dias de suporte', 'success') : ''}${badge(plural(p.temas.length, 'aula'), 'accent')}${badge((FREQ[p.frequencia] || FREQ.semanal).l, 'info')}${badge((p.duracao || 60) + ' min', 'gray')}${p.hora ? badge('🕖 ' + p.hora, 'gray') : ''}${p.valor ? badge(fmtBRL(p.valor) + (p.parcelas > 1 ? ` em ${p.parcelas}x` : ''), 'success') : ''}${badge(plural(usando.filter(a => a.status === 'ativo').length, 'mentorado ativo', 'mentorados ativos'), 'orange')}</div>
       <ol class="temas-lista">${p.temas.map(t => `<li>${esc(t)}</li>`).join('')}</ol>
     </div>`;
   }).join('')}</div>`;
@@ -1331,9 +1445,18 @@ function atualizarModoAluno() {
   $('al-valor-wrap').style.display = unit ? 'none' : '';
   $('al-valorunit-label').textContent = m === 'semanal' ? 'Valor por semana (R$)' : 'Valor por aula (R$)';
 }
+function onPlataformaAlunoChange() {
+  const atual = $('al-programa').value;
+  // troca o programa só se estiver vazio ou for um dos programas de plataforma
+  if (atual && !atual.startsWith('prog-10-')) return;
+  const alvo = getPrograma(idProgPlataforma(chavePlataforma($('al-plataforma').value)));
+  if (!alvo) return;
+  $('al-programa').value = alvo.id;
+  onProgramaAlunoChange();
+}
 function novoAluno() {
   editAlunoId = null;
-  const prog = DB.programas[0];
+  const prog = getPrograma(idProgPlataforma('geral')) || DB.programas[0];
   const cor = CORES[DB.alunos.length % CORES.length];
   preencherSelectsAluno({ status: 'ativo', programaId: prog ? prog.id : '' });
   ['al-nome', 'al-whats', 'al-email', 'al-insta', 'al-cidade', 'al-loja', 'al-nicho', 'al-site', 'al-fat', 'al-objetivo', 'al-obs'].forEach(i => $(i).value = '');
@@ -1626,6 +1749,10 @@ function novaAula(pre = {}) {
   $('aula-titulo').textContent = 'Nova aula';
   ['au-excluir', 'au-whats', 'au-gcal'].forEach(i => $(i).style.display = 'none');
   if (aulaSel.size === 1) sugerirDadosAula([...aulaSel][0]);
+  // vindo da Jornada: já chega com o nº e o tema daquela aula
+  if (pre.numero) { $('au-numero').value = pre.numero; }
+  if (pre.tema) { $('au-tema').value = pre.tema; _temaSugerido = pre.tema; }
+  if (pre.titulo) $('aula-titulo').textContent = pre.titulo;
   preencherDatalistTemas();
   renderChecksAula();
   renderPresencaAula();
@@ -1684,7 +1811,9 @@ function toggleAlunoAula(id, on) {
 function sugerirDadosAula(alunoId) {
   const al = getAluno(alunoId);
   if (!al) return;
-  const n = proximoNumeroAula(alunoId);
+  // com programa: a próxima aula da jornada que ainda não foi dada nem agendada
+  const livre = jornadaAluno(alunoId).slots.find(s => !s.realizada && !s.agendada);
+  const n = livre ? livre.n : proximoNumeroAula(alunoId);
   $('au-numero').value = n;
   const pr = getPrograma(al.programaId);
   const tema = pr && pr.temas[n - 1];
@@ -1733,6 +1862,7 @@ function salvarAula() {
     ajustarCobrancasAula(nova);
   }
   fecharModal('modal-aula');
+  if (d.status === 'realizada') verificarFimJornada(d.alunoIds);
   commit(editAulaId ? 'Aula atualizada' : 'Aula agendada ✓');
 }
 function excluirAula() {
@@ -1815,7 +1945,7 @@ function novoPrograma() {
   $('pr-freq').innerHTML = options(FREQ, DB.config.frequenciaPadrao);
   $('pr-duracao').value = DB.config.duracaoPadrao;
   $('pr-hora').value = DB.config.horaPadrao;
-  $('pr-valor').value = ''; $('pr-parcelas').value = 1;
+  $('pr-valor').value = ''; $('pr-parcelas').value = 1; $('pr-suporte').value = 30;
   $('pr-temas').value = ''; $('pr-qtd').textContent = 0;
   $('pr-excluir').style.display = 'none';
   $('prog-titulo').textContent = 'Novo programa';
@@ -1829,7 +1959,7 @@ function editarPrograma(id) {
   $('pr-freq').innerHTML = options(FREQ, p.frequencia);
   $('pr-duracao').value = p.duracao || 60;
   $('pr-hora').value = p.hora || '';
-  $('pr-valor').value = p.valor || ''; $('pr-parcelas').value = p.parcelas || 1;
+  $('pr-valor').value = p.valor || ''; $('pr-parcelas').value = p.parcelas || 1; $('pr-suporte').value = num(p.suporteDias);
   $('pr-temas').value = p.temas.join('\n'); $('pr-qtd').textContent = p.temas.length;
   $('pr-excluir').style.display = '';
   $('prog-titulo').textContent = 'Editar programa';
@@ -1839,7 +1969,7 @@ function salvarPrograma() {
   const d = {
     nome: $('pr-nome').value.trim(), descricao: $('pr-desc').value.trim(), frequencia: $('pr-freq').value,
     duracao: num($('pr-duracao').value) || 60, hora: $('pr-hora').value, valor: num($('pr-valor').value),
-    parcelas: Math.max(1, Math.floor(num($('pr-parcelas').value)) || 1), temas: linhas($('pr-temas').value)
+    parcelas: Math.max(1, Math.floor(num($('pr-parcelas').value)) || 1), temas: linhas($('pr-temas').value), suporteDias: Math.max(0, Math.floor(num($('pr-suporte').value)))
   };
   if (!d.nome) { toast('Informe o nome do programa', 'error'); return; }
   if (!d.temas.length) { toast('Informe pelo menos um tema', 'error'); return; }
@@ -1889,9 +2019,14 @@ function renderDetalhe() {
       <button class="modal-close" onclick="fecharModal('modal-detalhe')">×</button></div>`;
   garantirVoltar('modal-detalhe');
   const nA = aulasDoAluno(al.id).length, nP = pagsDoAluno(al.id).length;
-  const tabs = [['resumo', 'Resumo'], ['aulas', `Aulas<span class="n">${nA}</span>`], ['pagamentos', `Pagamentos<span class="n">${nP}</span>`], ['evolucao', `Resultados<span class="n">${al.evolucao.length}</span>`], ['notas', `Anotações<span class="n">${al.notas.length}</span>`]];
+  const jr = jornadaAluno(al.id), sp = suporteAluno(al);
+  const tabs = [['resumo', 'Resumo'], ['jornada', `Jornada<span class="n">${jr.total ? jr.realizadas + '/' + jr.total : '—'}</span>`], ['aulas', `Aulas<span class="n">${nA}</span>`], ['pagamentos', `Pagamentos<span class="n">${nP}</span>`],
+    ['suporte', `Suporte${sp ? `<span class="n">${sp.estado === 'ativo' ? sp.restam + 'd' : sp.estado === 'encerrado' ? 'fim' : 'em breve'}</span>` : ''}`],
+    ['evolucao', `Resultados<span class="n">${al.evolucao.length}</span>`], ['notas', `Anotações<span class="n">${al.notas.length}</span>`]];
   let h = `<div class="tabs">${tabs.map(([k, l]) => `<div class="tab ${detTab === k ? 'active' : ''}" onclick="setDetTab('${k}')">${l}</div>`).join('')}</div>`;
   if (detTab === 'resumo') h += detResumo(al, prog);
+  else if (detTab === 'jornada') h += detJornada(al);
+  else if (detTab === 'suporte') h += detSuporte(al);
   else if (detTab === 'aulas') h += detAulas(al);
   else if (detTab === 'pagamentos') h += detPagamentos(al);
   else if (detTab === 'evolucao') h += detEvolucao(al);
@@ -1913,7 +2048,7 @@ function detResumo(al, prog) {
     ['Cobrança', textoModo(al)], ['Cliente desde', al.criadoEm ? new Date(al.criadoEm).toLocaleDateString('pt-BR') : '']
   ];
   return `<div class="cards-grid grid-4 mb-16">
-      <div class="card card-sm"><div class="card-label">Aulas</div><div class="card-value">${pr.feitas}<span class="muted" style="font-size:15px">/${pr.total}</span></div><div style="margin-top:8px">${barraProgresso(pr.feitas, pr.total, corValida(al.cor))}</div></div>
+      <div class="card card-sm"><div class="card-label">Aulas</div><div class="card-value">${pr.feitas}<span class="muted" style="font-size:15px">/${pr.total}</span></div><div style="margin-top:8px">${barraProgresso(pr.feitas, pr.total, corValida(al.cor), aulasDoAluno(al.id).filter(a => a.status === 'falta').length)}</div></div>
       <div class="card card-sm"><div class="card-label">Próxima aula</div><div class="card-value" style="font-size:17px">${pr.proxima ? `${fmtDataSemana(pr.proxima.data)} · ${esc(pr.proxima.hora)}` : '—'}</div><div class="card-sub">${pr.proxima ? esc(pr.proxima.tema) : 'Nenhuma agendada'}</div></div>
       <div class="card card-sm"><div class="card-label">Pagamento</div><div class="card-value pos" style="font-size:19px">${fmtBRL(f.pago)}</div><div class="card-sub">de ${fmtBRL(f.cobrado)} cobrados${f.atrasado ? ` · <span class="neg">${fmtBRL(f.atrasado)} atrasado</span>` : ''}</div></div>
       <div class="card card-sm"><div class="card-label">Crescimento do faturamento</div><div class="card-value ${cresc == null ? '' : cresc >= 0 ? 'pos' : 'neg'}" style="font-size:19px">${cresc == null ? '—' : (cresc >= 0 ? '+' : '') + cresc.toFixed(0) + '%'}</div><div class="card-sub">${ultEvo ? `${fmtBRL(ultEvo.faturamento)} em ${fmtMes(ultEvo.mes)}` : 'Registre na aba Resultados'}</div></div>
@@ -1927,6 +2062,149 @@ function detResumo(al, prog) {
     ${al.obs ? `<div class="mb-16"><div class="card-label">Observações</div><div class="bloco-texto">${esc(al.obs)}</div></div>` : ''}
     <div class="flex justify-between mt-24"><button class="btn btn-danger btn-sm" onclick="excluirAluno('${al.id}')">Excluir mentorado</button></div>`;
 }
+// ── Aba JORNADA: as aulas do programa, uma a uma ──
+function detJornada(al) {
+  const j = jornadaAluno(al.id);
+  if (!j.total) {
+    const sug = getPrograma(idProgPlataforma(chavePlataforma(al.plataforma)));
+    return `<div class="empty-state"><div class="icon">🧭</div><p>Este mentorado ainda não tem um programa de aulas.</p>
+      ${sug ? `<button class="btn btn-primary" onclick="aplicarPrograma('${al.id}','${sug.id}')">Usar "${esc(sug.nome)}"</button> ` : ''}
+      <button class="btn btn-ghost" onclick="editarAluno('${al.id}')">Escolher outro programa</button></div>`;
+  }
+  const sp = suporteAluno(al);
+  let h = `<div class="cards-grid grid-4 mb-16">
+    <div class="card card-sm"><div class="card-label">Aulas dadas</div><div class="card-value pos">${j.realizadas}<span class="muted" style="font-size:15px">/${j.total}</span></div>
+      <div style="margin-top:8px"><div class="progress-bar"><div class="progress-fill" style="width:${Math.round(j.realizadas / j.total * 100)}%;background:var(--success)"></div></div></div></div>
+    <div class="card card-sm"><div class="card-label">Faltas</div><div class="card-value ${j.faltas ? 'neg' : ''}">${j.faltas}</div><div class="card-sub">${j.faltas ? 'aulas a remarcar abaixo' : 'nenhuma falta 👏'}</div></div>
+    <div class="card card-sm"><div class="card-label">Agendadas</div><div class="card-value">${j.agendadas}</div></div>
+    <div class="card card-sm"><div class="card-label">Faltam dar</div><div class="card-value">${j.total - j.realizadas}</div></div>
+  </div>
+  <div class="flex justify-between items-center mb-16" style="flex-wrap:wrap;gap:8px"><div class="muted text-sm">📚 ${esc(j.pr.nome)}</div>
+    <div class="flex gap-8"><button class="btn btn-ghost btn-sm" onclick="editarAluno('${al.id}')">Trocar programa</button><button class="btn btn-ghost btn-sm" onclick="abrirGerarAulas('${al.id}')">⚡ Agendar as próximas</button></div></div>`;
+  if (j.concluida) {
+    h += `<div class="alerta" style="background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.35)"><span style="font-size:20px">🎉</span><div class="grow"><b>Jornada concluída</b> em ${fmtData(j.dataFim)}.${sp ? ` Suporte ${sp.estado === 'ativo' ? 'ativo até ' + fmtData(sp.fim) : sp.estado === 'encerrado' ? 'encerrado em ' + fmtData(sp.fim) : 'a partir de ' + fmtData(sp.inicio)}.` : ''}</div>
+      <button class="btn btn-ghost btn-sm" onclick="setDetTab('suporte')">🛟 Suporte</button></div>`;
+  }
+  return h + `<div class="jornada">${j.slots.map(s => slotJornada(al, s)).join('')}</div>`;
+}
+function slotJornada(al, s) {
+  let estado, cls = '', info = '', acoes = '';
+  if (s.realizada) {
+    estado = badge('✓ Realizada', 'success'); cls = 'ok';
+    info = `${fmtDataSemana(s.realizada.data)} · ${esc(s.realizada.hora)}`;
+    acoes = `<button class="btn btn-ghost btn-xs" onclick="editarAula('${s.realizada.id}')">📝 Detalhes</button>`;
+  } else if (s.agendada) {
+    estado = aulaPendenteConfirmacao(s.agendada) ? badge('A confirmar', 'warning') : badge('📅 Agendada', 'info'); cls = 'ag';
+    info = `${fmtDataSemana(s.agendada.data)} · ${esc(s.agendada.hora)}`;
+    acoes = `<button class="btn btn-success btn-xs" onclick="marcarAula('${s.agendada.id}','realizada')">✓ Realizada</button>
+      <button class="btn btn-ghost btn-xs" onclick="marcarAula('${s.agendada.id}','falta')">✗ Faltou</button>
+      <button class="btn btn-ghost btn-xs" onclick="editarAula('${s.agendada.id}')">Editar</button>`;
+  } else {
+    estado = s.faltas.length ? badge('Remarcar', 'danger') : badge('A agendar', 'gray');
+    cls = s.faltas.length ? 'falta' : '';
+    acoes = `<button class="btn btn-primary btn-xs" onclick="agendarSlot('${al.id}',${s.n})">${s.faltas.length ? '↻ Remarcar' : '+ Agendar'}</button>`;
+  }
+  const faltas = s.faltas.length ? `<div class="js-faltas">✗ ${plural(s.faltas.length, 'falta')}: ${s.faltas.map(f => `<a class="link" onclick="editarAula('${f.id}')">${fmtDataCurta(f.data)}</a>`).join(', ')}</div>` : '';
+  const r = s.realizada;
+  const det = r && (r.notas || r.tarefas) ? `<div class="js-det">${r.notas ? '📝 ' + esc(r.notas) : ''}${r.notas && r.tarefas ? '<br>' : ''}${r.tarefas ? '📋 ' + esc(r.tarefas) : ''}</div>` : '';
+  return `<div class="js-item ${cls}"><div class="js-num">${r ? '✓' : s.n}</div><div class="js-corpo">
+    <div class="js-topo"><div class="js-tema">Aula ${s.n} · ${esc(s.tema)}</div>${estado}</div>
+    ${info ? `<div class="js-info">${info}</div>` : ''}${faltas}${det}<div class="js-acoes">${acoes}</div></div></div>`;
+}
+function agendarSlot(alunoId, n) {
+  const s = jornadaAluno(alunoId).slots[n - 1];
+  if (!s) return;
+  const ultima = aulasDoAluno(alunoId).filter(aulaConta).sort(porDataHora).pop();
+  const hoje = hojeISO();
+  const data = ultima && addDias(ultima.data, 7) > hoje ? addDias(ultima.data, 7) : hoje;
+  novaAula({ alunoIds: [alunoId], data, numero: n, tema: s.tema, titulo: `Aula ${n} — ${nomeAluno(alunoId)}` });
+}
+function aplicarPrograma(alunoId, progId) {
+  const al = getAluno(alunoId);
+  if (!al) return;
+  al.programaId = progId;
+  commit('Programa aplicado ✓');
+}
+
+// ── Aba SUPORTE: 30 dias depois das aulas ──
+const CANAIS = ['WhatsApp', 'Ligação', 'Chamada de vídeo', 'E-mail', 'Presencial', 'Outro'];
+function detSuporte(al) {
+  const j = jornadaAluno(al.id), sp = suporteAluno(al);
+  if (!sp) {
+    const texto = j.total ? (j.concluida ? `As ${j.total} aulas terminaram em ${fmtData(j.dataFim)}.` : `O suporte começa sozinho quando as ${j.total} aulas forem concluídas (${j.realizadas}/${j.total} até agora).`) : '';
+    return `<div class="card"><div class="card-head"><h3>🛟 Suporte pós-mentoria</h3>${badge('Não iniciado', 'gray')}</div>
+      <div class="card-sub mb-16">${texto} Se preferir, inicie manualmente:</div>
+      <div class="form-row col3" style="align-items:end">
+        <div class="form-group"><label>Início do suporte</label><input id="sp-inicio" type="date" value="${j.dataFim || hojeISO()}"></div>
+        <div class="form-group"><label>Duração (dias)</label><input id="sp-dias" type="number" min="1" value="${num(j.pr && j.pr.suporteDias) || 30}"></div>
+        <div class="form-group"><button class="btn btn-primary" onclick="salvarSuporte('${al.id}')">Iniciar suporte</button></div></div></div>`;
+  }
+  const pct = Math.round(sp.decorridos / sp.dias * 100);
+  const st = sp.estado === 'ativo' ? badge(`Ativo · faltam ${plural(sp.restam, 'dia')}`, 'success')
+    : sp.estado === 'futuro' ? badge('Começa em ' + fmtData(sp.inicio), 'info') : badge('Encerrado em ' + fmtData(sp.fim), 'gray');
+  const lista = sp.atendimentos.slice().sort((a, b) => b.data.localeCompare(a.data));
+  return `<div class="card mb-16"><div class="card-head"><h3>🛟 Suporte de ${sp.dias} dias</h3>${st}</div>
+      <div class="cards-grid grid-3 mb-16" style="grid-template-columns:repeat(3,minmax(0,1fr))">
+        <div><div class="card-label">Início</div><div class="font-bold">${fmtData(sp.inicio)}</div></div>
+        <div><div class="card-label">Fim</div><div class="font-bold">${fmtData(sp.fim)}</div></div>
+        <div><div class="card-label">Atendimentos</div><div class="font-bold">${sp.atendimentos.length}</div></div></div>
+      <div class="progress-bar" style="height:8px"><div class="progress-fill" style="width:${pct}%;background:${sp.estado === 'encerrado' ? 'var(--text3)' : 'var(--success)'}"></div></div>
+      <div class="prog-txt">${sp.decorridos} de ${sp.dias} dias</div>
+      <div class="flex gap-8 mt-16" style="flex-wrap:wrap">
+        <button class="btn btn-ghost btn-sm" onclick="$('sp-editar').style.display=''">✏️ Alterar datas</button>
+        ${sp.estado === 'encerrado' && al.status === 'ativo' ? `<button class="btn btn-success btn-sm" onclick="concluirMentoria('${al.id}')">✓ Marcar mentoria como concluída</button>` : ''}
+        <button class="btn btn-ghost btn-sm" style="color:var(--danger)" onclick="removerSuporte('${al.id}')">Remover suporte</button></div>
+      <div id="sp-editar" style="display:none" class="mt-16"><div class="form-row col3" style="align-items:end">
+        <div class="form-group"><label>Início</label><input id="sp-inicio" type="date" value="${sp.inicio}"></div>
+        <div class="form-group"><label>Duração (dias)</label><input id="sp-dias" type="number" min="1" value="${sp.dias}"></div>
+        <div class="form-group"><button class="btn btn-primary" onclick="salvarSuporte('${al.id}')">Salvar</button></div></div></div></div>
+    <div class="card"><div class="card-head"><h3>📞 Atendimentos do suporte</h3></div>
+      <div class="form-row col3">
+        <div class="form-group"><label>Data</label><input id="at-data" type="date" value="${hojeISO()}"></div>
+        <div class="form-group"><label>Canal</label><select id="at-canal">${optionsLista(CANAIS, 'WhatsApp')}</select></div>
+        <div class="form-group"><label>Assunto</label><input id="at-assunto" placeholder="Ex.: dúvida sobre campanha"></div></div>
+      <div class="form-group"><label>Detalhes</label><textarea id="at-detalhe" placeholder="O que foi tratado, próximos passos..."></textarea></div>
+      <div class="flex mb-16" style="justify-content:flex-end"><button class="btn btn-primary btn-sm" onclick="adicionarAtendimento('${al.id}')">+ Registrar atendimento</button></div>
+      ${lista.length ? lista.map(a => `<div class="nota"><div class="cab"><span>📅 ${fmtDataSemana(a.data)} · ${esc(a.canal)}${a.data >= sp.inicio && a.data <= sp.fim ? ` · dia ${diasEntre(sp.inicio, a.data) + 1} do suporte` : ''}</span>
+        <button class="btn-icon" style="font-size:12px" onclick="excluirAtendimento('${al.id}','${a.id}')" title="Excluir">🗑</button></div>
+        <div class="txt">${a.assunto ? `<b>${esc(a.assunto)}</b>` : ''}${a.assunto && a.detalhe ? '\n' : ''}${esc(a.detalhe || '')}</div></div>`).join('') : '<div class="empty-mini">Nenhum atendimento registrado ainda.</div>'}
+    </div>`;
+}
+function salvarSuporte(alunoId) {
+  const al = getAluno(alunoId);
+  if (sumiu(al, 'modal-detalhe')) return;
+  const inicio = $('sp-inicio').value, dias = Math.floor(num($('sp-dias').value));
+  if (!inicio || dias < 1) { toast('Informe a data de início e a duração', 'error'); return; }
+  al.suporte = { ...(al.suporte || {}), inicio, dias, atendimentos: (al.suporte && al.suporte.atendimentos) || [] };
+  commit(`Suporte até ${fmtData(addDias(inicio, dias))} ✓`);
+}
+function removerSuporte(alunoId) {
+  const al = getAluno(alunoId);
+  if (!al || !confirm('Remover o suporte deste mentorado?' + (al.suporte && al.suporte.atendimentos.length ? `\n\nOs ${al.suporte.atendimentos.length} atendimentos registrados também serão apagados.` : ''))) return;
+  al.suporte = null;
+  commit('Suporte removido');
+}
+function concluirMentoria(alunoId) {
+  const al = getAluno(alunoId);
+  if (!al) return;
+  al.status = 'concluido';
+  commit(`Mentoria de ${primeiroNome(al.nome)} concluída 🎓`);
+}
+function adicionarAtendimento(alunoId) {
+  const al = getAluno(alunoId);
+  if (sumiu(al, 'modal-detalhe') || !al.suporte) return;
+  const at = { id: uid(), data: $('at-data').value || hojeISO(), canal: $('at-canal').value, assunto: $('at-assunto').value.trim(), detalhe: $('at-detalhe').value.trim() };
+  if (!at.assunto && !at.detalhe) { toast('Escreva o assunto ou os detalhes do atendimento', 'error'); return; }
+  al.suporte.atendimentos.push(at);
+  commit('Atendimento registrado ✓');
+}
+function excluirAtendimento(alunoId, atId) {
+  const al = getAluno(alunoId);
+  if (!al || !al.suporte || !confirm('Excluir este atendimento?')) return;
+  al.suporte.atendimentos = al.suporte.atendimentos.filter(a => a.id !== atId);
+  commit();
+}
+
 function detAulas(al) {
   const l = aulasDoAluno(al.id).sort(porDataHora);
   const barra = `<div class="flex gap-8 mb-16"><button class="btn btn-primary btn-sm" onclick="novaAula({alunoIds:['${al.id}']})">+ Aula</button><button class="btn btn-ghost btn-sm" onclick="abrirGerarAulas('${al.id}')">⚡ Gerar cronograma</button>
@@ -2328,6 +2606,7 @@ async function iniciarApp() {
     if (abertos.length) fecharOverlay(abertos[0].id);
   });
   $('al-programa').addEventListener('change', onProgramaAlunoChange);
+  $('al-plataforma').addEventListener('change', onPlataformaAlunoChange);
   $('al-inicio').addEventListener('change', onInicioAlunoChange);
   $('ga-duracao').addEventListener('input', previewGerarAulas);
   ['gp-n', 'gp-total'].forEach(i => $(i).addEventListener('change', previewGerarParcelas));

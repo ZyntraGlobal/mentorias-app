@@ -217,6 +217,24 @@ tr.linha-apagada td { opacity: 0.55; }
 .agenda-layout { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 16px; align-items: start; }
 .painel-dia { position: sticky; top: 0; }
 @media (max-width: 1250px) { .agenda-layout { grid-template-columns: minmax(0, 1fr); } .painel-dia { position: static; } }
+/* JORNADA DAS AULAS */
+.jornada { position: relative; }
+.js-item { display: flex; gap: 12px; padding: 12px; border: 1px solid var(--border); border-radius: 12px; margin-bottom: 8px; background: var(--card); }
+.js-item.ok { border-color: rgba(16,185,129,0.35); background: rgba(16,185,129,0.05); }
+.js-item.ag { border-color: rgba(59,130,246,0.35); }
+.js-item.falta { border-color: rgba(239,68,68,0.4); background: rgba(239,68,68,0.05); }
+.js-num { width: 30px; height: 30px; border-radius: 50%; background: var(--card2); color: var(--text); font-weight: 800; font-size: 13px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.js-item.ok .js-num { background: var(--success); color: #fff; }
+.js-item.ag .js-num { background: var(--info); color: #fff; }
+.js-item.falta .js-num { background: var(--danger); color: #fff; }
+.js-corpo { flex: 1; min-width: 0; }
+.js-topo { display: flex; justify-content: space-between; gap: 8px; align-items: flex-start; }
+.js-tema { font-weight: 700; font-size: 13.5px; }
+.js-info { font-size: 12px; color: var(--text2); margin-top: 3px; }
+.js-faltas { font-size: 12px; color: #FCA5A5; margin-top: 4px; }
+.js-det { font-size: 12px; color: var(--text2); margin-top: 6px; background: var(--bg); border-radius: 8px; padding: 6px 10px; white-space: pre-wrap; }
+.js-acoes { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+.js-acoes:empty { display: none; }
 /* LINHA DO TEMPO DO DIA */
 .tl-item { display: flex; align-items: stretch; gap: 10px; padding: 10px 6px; border-bottom: 1px solid rgba(51,65,85,0.5); cursor: pointer; border-radius: 8px; }
 .tl-item:last-child { border-bottom: none; }
@@ -627,6 +645,7 @@ tr.linha-apagada td { opacity: 0.55; }
         <div class="form-group"><label>Valor padrão (R$)</label><input id="pr-valor" type="number" step="0.01" min="0"></div>
         <div class="form-group"><label>Nº de parcelas sugerido</label><input id="pr-parcelas" type="number" min="1"></div>
       </div>
+      <div class="form-group"><label>Dias de suporte depois da última aula (0 = sem suporte)</label><input id="pr-suporte" type="number" min="0"></div>
       <div class="form-group">
         <label>Temas das aulas (um por linha, na ordem) *</label>
         <textarea id="pr-temas" style="min-height:220px" oninput="$('pr-qtd').textContent=linhas(this.value).length"></textarea>
